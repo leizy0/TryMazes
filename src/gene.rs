@@ -1,6 +1,26 @@
+use clap::ValueEnum;
 use rand::Rng;
 
 use crate::maze::{Direction, Maze};
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum MazeGenAlgorithm {
+    BTree,
+    Sidewinder,
+}
+
+impl MazeGenAlgorithm {
+    pub fn generator(&self) -> Box<dyn MazeGenerator> {
+        match self {
+            MazeGenAlgorithm::BTree => Box::new(BTreeMazeGenerator::new()),
+            MazeGenAlgorithm::Sidewinder => Box::new(SideWinderMazeGenerator::new()),
+        }
+    }
+}
+
+pub trait MazeGenerator {
+    fn generate(&self, width: usize, height: usize) -> Maze;
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct BTreeMazeGenerator {}
@@ -9,8 +29,10 @@ impl BTreeMazeGenerator {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
-    pub fn generate(&self, width: usize, height: usize) -> Maze {
+impl MazeGenerator for BTreeMazeGenerator {
+    fn generate(&self, width: usize, height: usize) -> Maze {
         let mut maze = Maze::new(width, height);
         let mut rng = rand::rng();
         let connect_dirs = [Direction::North, Direction::East];
@@ -43,8 +65,10 @@ impl SideWinderMazeGenerator {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
-    pub fn generate(&self, width: usize, height: usize) -> Maze {
+impl MazeGenerator for SideWinderMazeGenerator {
+    fn generate(&self, width: usize, height: usize) -> Maze {
         let mut maze = Maze::new(width, height);
         let mut rng = rand::rng();
         for r_ind in 0..height {
