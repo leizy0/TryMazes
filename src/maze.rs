@@ -10,7 +10,7 @@ pub enum Direction {
     West,
 }
 
-#[derive(Debug, Clone, Default)] 
+#[derive(Debug, Clone, Default)]
 pub struct Maze {
     width: usize,
     height: usize,
@@ -19,7 +19,11 @@ pub struct Maze {
 
 impl Maze {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { width, height, cells: vec![ Cell::default(); width * height ] }
+        Self {
+            width,
+            height,
+            cells: vec![Cell::default(); width * height],
+        }
     }
 
     pub fn size(&self) -> (usize, usize) {
@@ -32,7 +36,10 @@ impl Maze {
                 Direction::North => cell.is_connected_to_north,
                 Direction::East => cell.is_connected_to_east,
                 Direction::South => self.is_connect_to(r_ind + 1, c_ind, Direction::North),
-                Direction::West => c_ind.checked_sub(1).map(|west_c_ind| self.is_connect_to(r_ind, west_c_ind, Direction::East)).unwrap_or(false),
+                Direction::West => c_ind
+                    .checked_sub(1)
+                    .map(|west_c_ind| self.is_connect_to(r_ind, west_c_ind, Direction::East))
+                    .unwrap_or(false),
             }
         } else {
             false
@@ -45,19 +52,23 @@ impl Maze {
                 Direction::North => cell.is_connected_to_north = true,
                 Direction::East => cell.is_connected_to_east = true,
                 Direction::South => self.connect_to(r_ind + 1, c_ind, Direction::North),
-                Direction::West => if let Some(west_c_ind) = c_ind.checked_sub(1) {
-                    self.connect_to(r_ind, west_c_ind, Direction::East);
-                },
+                Direction::West => {
+                    if let Some(west_c_ind) = c_ind.checked_sub(1) {
+                        self.connect_to(r_ind, west_c_ind, Direction::East);
+                    }
+                }
             }
         }
     }
 
     fn cell(&self, r_ind: usize, c_ind: usize) -> Option<&Cell> {
-        self.pos_to_ind(r_ind, c_ind).and_then(|ind| self.cells.get(ind))
+        self.pos_to_ind(r_ind, c_ind)
+            .and_then(|ind| self.cells.get(ind))
     }
 
     fn cell_mut(&mut self, r_ind: usize, c_ind: usize) -> Option<&mut Cell> {
-        self.pos_to_ind(r_ind, c_ind).and_then(|ind| self.cells.get_mut(ind))
+        self.pos_to_ind(r_ind, c_ind)
+            .and_then(|ind| self.cells.get_mut(ind))
     }
 
     fn pos_to_ind(&self, r_ind: usize, c_ind: usize) -> Option<usize> {
