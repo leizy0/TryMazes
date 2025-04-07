@@ -3,26 +3,19 @@ use rand::Rng;
 
 use crate::maze::{Direction, Maze};
 
-#[derive(Debug, Clone, ValueEnum)]
-pub enum MazeGenAlgorithm {
-    BTree,
-    Sidewinder,
-}
-
-impl MazeGenAlgorithm {
-    pub fn generator(&self) -> Box<dyn MazeGenerator> {
-        match self {
-            MazeGenAlgorithm::BTree => Box::new(BTreeMazeGenerator::new()),
-            MazeGenAlgorithm::Sidewinder => Box::new(SideWinderMazeGenerator::new()),
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum ConnectDirection {
+    Northeast,
+    Southeast,
+    Southwest,
+    Northwest,
 }
 
 pub trait MazeGenerator {
     fn generate(&self, width: usize, height: usize) -> Maze;
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BTreeMazeGenerator {}
 
 impl BTreeMazeGenerator {
@@ -58,7 +51,7 @@ impl MazeGenerator for BTreeMazeGenerator {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SideWinderMazeGenerator {}
 
 impl SideWinderMazeGenerator {
