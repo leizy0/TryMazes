@@ -8,6 +8,9 @@ use try_mazes::{
 };
 
 fn main() -> Result<(), Error> {
+    const DEF_WALL_THICKNESS: usize = 5;
+    const DEF_CELL_WIDTH: usize = 50;
+
     let maze_input = MazeInputArgs::parse();
     let generator: &dyn MazeGenerator = match maze_input.algorithm {
         MazeGenAlgorithm {
@@ -29,7 +32,9 @@ fn main() -> Result<(), Error> {
         MazeAction::Show { category } => match category {
             MazeShowCategory::ASCII => println!("{}", maze),
             MazeShowCategory::UNICODE => unimplemented!("Unicode display isn't supported yet."),
-            MazeShowCategory::GUI => unimplemented!("GUI display isn't supported yet."),
+            MazeShowCategory::GUI => {
+                GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH).show()?
+            }
         },
         MazeAction::Save(SaveOption {
             ascii: true, path, ..
@@ -51,7 +56,7 @@ fn main() -> Result<(), Error> {
         }) => {
             let mut file = File::create(path)?;
             file.write_all(
-                GUIMazeShow::new(&maze, 1, 10)
+                GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH)
                     .image_data(format)?
                     .as_bytes(),
             )?;
