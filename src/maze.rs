@@ -30,6 +30,16 @@ impl Maze {
         (self.width, self.height)
     }
 
+    pub fn is_at_border(&self, r_ind: usize, c_ind: usize, dir: Direction) -> bool {
+        self.cell(r_ind, c_ind).is_some()
+            && match dir {
+                Direction::North => r_ind == 0,
+                Direction::South => r_ind == self.height - 1,
+                Direction::East => c_ind == self.width - 1,
+                Direction::West => c_ind == 0,
+            }
+    }
+
     pub fn is_connect_to(&self, r_ind: usize, c_ind: usize, dir: Direction) -> bool {
         if let Some(cell) = self.cell(r_ind, c_ind) {
             match dir {

@@ -3,7 +3,7 @@ use std::{fs::File, io::Write, path::PathBuf};
 use anyhow::Error;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use try_mazes::{
-    gene::{BTreeMazeGenerator, ConnectDirection, MazeGenerator, SideWinderMazeGenerator},
+    gene::{BTreeMazeGenerator, DiagonalDirection, MazeGenerator, SideWinderMazeGenerator},
     show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat},
 };
 
@@ -17,12 +17,12 @@ fn main() -> Result<(), Error> {
             btree: true,
             con_dir: Some(dir),
             ..
-        } => &BTreeMazeGenerator::new(),
+        } => &BTreeMazeGenerator::new(dir),
         MazeGenAlgorithm {
             sidewinder: true,
             con_dir: Some(dir),
             ..
-        } => &SideWinderMazeGenerator::new(),
+        } => &SideWinderMazeGenerator::new(dir),
         _ => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
         ),
@@ -96,7 +96,7 @@ struct MazeGenAlgorithm {
     sidewinder: bool,
     /// Candidate directions to connect
     #[arg(short, long, group = "connect direction")]
-    con_dir: Option<ConnectDirection>,
+    con_dir: Option<DiagonalDirection>,
 }
 
 #[derive(Debug, Subcommand)]
