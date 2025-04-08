@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 rand = "0.9.0"
 clap = { version = "4.5.35", features = ["derive"] }
+anyhow = "1.0.97"
+skia-safe = "0.84.0"
+thiserror = "2.0.12"

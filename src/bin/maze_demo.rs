@@ -1,31 +1,65 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
+use anyhow::Error;
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use try_mazes::{gene::{BTreeMazeGenerator, ConnectDirection, MazeGenerator, SideWinderMazeGenerator}, show::AsciiMazeDisplay};
+use try_mazes::{
+    gene::{BTreeMazeGenerator, ConnectDirection, MazeGenerator, SideWinderMazeGenerator},
+    show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat},
+};
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(), Error> {
     let maze_input = MazeInputArgs::parse();
     let generator: &dyn MazeGenerator = match maze_input.algorithm {
-        MazeGenAlgorithm { btree: true, con_dir: Some(dir), ..} => &BTreeMazeGenerator::new(),
-        MazeGenAlgorithm { sidewinder: true, con_dir: Some(dir) , ..} => &SideWinderMazeGenerator::new(),
-        _ => unreachable!("Given unknown algorithm or missing arguments of algorithm, should be checked by clap."),
+        MazeGenAlgorithm {
+            btree: true,
+            con_dir: Some(dir),
+            ..
+        } => &BTreeMazeGenerator::new(),
+        MazeGenAlgorithm {
+            sidewinder: true,
+            con_dir: Some(dir),
+            ..
+        } => &SideWinderMazeGenerator::new(),
+        _ => unreachable!(
+            "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
+        ),
     };
     let maze = generator.generate(maze_input.width, maze_input.height);
     match maze_input.action {
-        MazeAction::Show { category } => {
-                        match category {
-                            MazeShowCategory::ASCII => println!("{}", maze),
-                            MazeShowCategory::UNICODE => unimplemented!("Unicode display isn't supported yet."),
-                            MazeShowCategory::GUI =>  unimplemented!("GUI display isn't supported yet."),
-                        }
-            },
-        MazeAction::Save(SaveOption { ascii: true, path, .. }) | MazeAction::Save(SaveOption { unicode: true, path, .. }) => {
-            let mut file = File::create(path)?;
-            file.write(AsciiMazeDisplay(&maze).to_string().as_bytes())?;
-            file.flush()?;
+        MazeAction::Show { category } => match category {
+            MazeShowCategory::ASCII => println!("{}", maze),
+            MazeShowCategory::UNICODE => unimplemented!("Unicode display isn't supported yet."),
+            MazeShowCategory::GUI => unimplemented!("GUI display isn't supported yet."),
         },
-        MazeAction::Save(SaveOption { picture: true, pic_format: Some(format), path, .. }) => unimplemented!("Saving maze to picture isn't supported yet."),
-        _ => unreachable!("Given unknown action or missing arguments of action, should be checked by clap."),
+        MazeAction::Save(SaveOption {
+            ascii: true, path, ..
+        })
+        | MazeAction::Save(SaveOption {
+            unicode: true,
+            path,
+            ..
+        }) => {
+            let mut file = File::create(path)?;
+            file.write_all(AsciiMazeDisplay(&maze).to_string().as_bytes())?;
+            file.flush()?;
+        }
+        MazeAction::Save(SaveOption {
+            picture: true,
+            pic_format: Some(format),
+            path,
+            ..
+        }) => {
+            let mut file = File::create(path)?;
+            file.write_all(
+                GUIMazeShow::new(&maze, 1, 10)
+                    .image_data(format)?
+                    .as_bytes(),
+            )?;
+            file.flush()?;
+        }
+        _ => unreachable!(
+            "Given unknown action or missing arguments of action, should be checked by clap."
+        ),
     }
 
     Ok(())
@@ -47,7 +81,6 @@ struct MazeInputArgs {
     action: MazeAction,
 }
 
-
 #[derive(Debug, Clone, Copy, Args)]
 struct MazeGenAlgorithm {
     /// Using binary tree algorithm
@@ -61,13 +94,10 @@ struct MazeGenAlgorithm {
     con_dir: Option<ConnectDirection>,
 }
 
-#[derive(Debug)]
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum MazeAction {
     /// Show maze by chosen way
-    Show {
-        category: MazeShowCategory,
-    },
+    Show { category: MazeShowCategory },
     /// Save maze by given settings
     Save(SaveOption),
 }
@@ -99,12 +129,4 @@ struct SaveOption {
     /// Path to save
     #[arg(short, long)]
     path: PathBuf,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
-enum SavePictureFormat {
-    /// PNG file format
-    PNG,
-    /// JPEG file format
-    JPG,
 }

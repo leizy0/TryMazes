@@ -1,8 +1,21 @@
-use std::fmt::Display;
+use std::{cell::RefCell, fmt::Display};
+
+use anyhow::{Error as AnyError, Result};
+use clap::ValueEnum;
+use skia_safe::{Color, Data, EncodedImageFormat, Paint, PaintStyle, Path, Surface, surfaces};
+use thiserror::Error;
 
 use crate::maze::{Direction, Maze};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Error)]
+pub enum Error {
+    #[error("Failed to encode maze image to {0:?}")]
+    ImageEncodeFailure(EncodedImageFormat),
+    #[error("Failed to create surface")]
+    CanNotCreateSurface,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct AsciiMazeDisplay<'a>(pub &'a Maze);
 
 impl<'a> Display for AsciiMazeDisplay<'a> {
@@ -52,5 +65,117 @@ impl<'a> Display for AsciiMazeDisplay<'a> {
         }
         ceil_line.push_str(corner);
         write!(f, "{}", ceil_line)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+pub enum SavePictureFormat {
+    /// PNG file format
+    PNG,
+    /// JPEG file format
+    JPEG,
+}
+
+#[derive(Debug, Clone)]
+pub struct GUIMazeShow<'a> {
+    maze: &'a Maze,
+    wall_thickness: usize,
+    cell_width: usize,
+    surface: RefCell<Option<Surface>>,
+}
+
+impl<'a> GUIMazeShow<'a> {
+    pub fn new(maze: &'a Maze, wall_thickness: usize, cell_width: usize) -> Self {
+        Self {
+            maze,
+            wall_thickness,
+            cell_width,
+            surface: RefCell::new(None),
+        }
+    }
+
+    pub fn show(&self) {
+        unimplemented!("Can't display maze picture in GUI yet.");
+    }
+
+    pub fn image_data(&self, format: SavePictureFormat) -> Result<Data, AnyError> {
+        self.init_surface()?;
+        let mut surface_op = self.surface.borrow_mut();
+        let surface = surface_op.as_mut().unwrap();
+
+        let image = surface.image_snapshot();
+        let mut context = surface.direct_context();
+        let format = match format {
+            SavePictureFormat::PNG => EncodedImageFormat::PNG,
+            SavePictureFormat::JPEG => EncodedImageFormat::JPEG,
+        };
+        image
+            .encode(context.as_mut(), format, None)
+            .ok_or(Error::ImageEncodeFailure(format).into())
+    }
+
+    fn init_surface(&self) -> Result<()> {
+        if self.surface.borrow().is_none() {
+            let surface = self.paint()?;
+            self.surface.borrow_mut().replace(surface);
+        }
+
+        Ok(())
+    }
+
+    fn paint(&self) -> Result<Surface> {
+        let (width, height) = self.maze.size();
+        let cell_interval = i32::try_from(self.cell_width + self.wall_thickness)?;
+        let canvas_width =
+            cell_interval * i32::try_from(width)? + i32::try_from(self.wall_thickness)?;
+        let canvas_height =
+            cell_interval * i32::try_from(height)? + i32::try_from(self.wall_thickness)?;
+        let mut surface = surfaces::raster_n32_premul((canvas_width, canvas_height))
+            .ok_or(Error::CanNotCreateSurface)?;
+        let mut paint = Paint::default();
+        paint.set_color(Color::BLACK);
+        paint.set_anti_alias(false);
+        paint.set_style(PaintStyle::Stroke);
+        paint.set_stroke_width(u16::try_from(self.wall_thickness)?.into());
+        surface.canvas().clear(Color::WHITE);
+
+        let mut path = Path::new();
+        let mut cell_y0 = 0;
+        for r_ind in 0..height {
+            let mut cell_x0 = 0;
+            let cell_y1 = cell_y0 + cell_interval;
+            for c_ind in 0..width {
+                let cell_x1 = cell_x0 + cell_interval;
+                if !self.maze.is_connect_to(r_ind, c_ind, Direction::North) {
+                    path.move_to((cell_x0, cell_y0));
+                    path.line_to((cell_x1 + 1, cell_y0));
+                }
+
+                if !self.maze.is_connect_to(r_ind, c_ind, Direction::West) {
+                    path.move_to((cell_x0, cell_y0));
+                    path.line_to((cell_x0, cell_y1 + 1));
+                }
+
+                cell_x0 += cell_interval;
+            }
+            // East border
+            path.move_to((cell_x0, cell_y0));
+            path.line_to((cell_x0, cell_y1 + 1));
+
+            cell_y0 = cell_y1;
+        }
+
+        // South border
+        let mut cell_x0 = 0;
+        for _ in 0..width {
+            let cell_x1 = cell_x0 + cell_interval;
+            path.move_to((cell_x0, cell_y0));
+            path.line_to((cell_x1 + 1, cell_y0));
+
+            cell_x0 = cell_x1;
+        }
+        surface.canvas().draw_path(&path, &paint);
+
+        Ok(surface)
     }
 }
