@@ -1,10 +1,10 @@
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 
 use anyhow::Error;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use try_mazes::{
     gene::{BTreeMazeGenerator, DiagonalDirection, MazeGenerator, SideWinderMazeGenerator},
-    show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat},
+    show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat, UnicodeDisplay},
 };
 
 fn main() -> Result<(), Error> {
@@ -30,22 +30,25 @@ fn main() -> Result<(), Error> {
     let maze = generator.generate(maze_input.width, maze_input.height);
     match maze_input.action {
         MazeAction::Show { category } => match category {
-            MazeShowCategory::ASCII => println!("{}", maze),
-            MazeShowCategory::UNICODE => unimplemented!("Unicode display isn't supported yet."),
+            MazeShowCategory::ASCII => println!("{}", AsciiMazeDisplay(&maze)),
+            MazeShowCategory::UNICODE => println!("{}", UnicodeDisplay(&maze)),
             MazeShowCategory::GUI => {
                 GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH).show()?
             }
         },
         MazeAction::Save(SaveOption {
-            ascii: true, path, ..
-        })
-        | MazeAction::Save(SaveOption {
-            unicode: true,
+            ascii,
+            unicode,
             path,
             ..
-        }) => {
+        }) if ascii || unicode => {
             let mut file = File::create(path)?;
-            file.write_all(AsciiMazeDisplay(&maze).to_string().as_bytes())?;
+            let display: &dyn Display = if ascii {
+                &AsciiMazeDisplay(&maze)
+            } else {
+                &UnicodeDisplay(&maze)
+            };
+            file.write_all(display.to_string().as_bytes())?;
             file.flush()?;
         }
         MazeAction::Save(SaveOption {

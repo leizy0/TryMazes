@@ -74,6 +74,106 @@ impl<'a> Display for AsciiMazeDisplay<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct UnicodeDisplay<'a>(pub &'a Maze);
+
+impl Display for UnicodeDisplay<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let horz = '\u{2501}';
+        let vert = '\u{2503}';
+
+        let (width, height) = self.0.size();
+        let mut ceil = String::new();
+        let mut body = String::new();
+        let mut last_row_has_vert_wall = vec![false; width];
+        for r_ind in 0..height {
+            ceil.clear();
+            body.clear();
+            let mut has_west_wall = false;
+            for c_ind in 0..width {
+                let has_east_wall = !self.0.is_connect_to(r_ind, c_ind, Direction::North);
+                let has_north_wall = last_row_has_vert_wall[c_ind];
+                let has_south_wall = !self.0.is_connect_to(r_ind, c_ind, Direction::West);
+                let corner = Self::select_corner(
+                    has_west_wall,
+                    has_north_wall,
+                    has_east_wall,
+                    has_south_wall,
+                );
+                ceil.push(corner);
+                ceil.push(if has_east_wall { horz } else { ' ' });
+                body.push(if has_south_wall { vert } else { ' ' });
+                body.push(' ');
+
+                last_row_has_vert_wall[c_ind] = has_south_wall;
+                has_west_wall = has_east_wall;
+            }
+
+            ceil.push(Self::select_corner(has_west_wall, r_ind != 0, false, true));
+            body.push(vert);
+            writeln!(f, "{}", ceil)?;
+            writeln!(f, "{}", body)?;
+        }
+
+        ceil.clear();
+        for c_ind in 0..width {
+            ceil.push(Self::select_corner(
+                c_ind != 0,
+                last_row_has_vert_wall[c_ind],
+                true,
+                false,
+            ));
+            ceil.push(horz);
+        }
+        ceil.push(Self::select_corner(true, true, false, false));
+        write!(f, "{}", ceil)
+    }
+}
+
+impl UnicodeDisplay<'_> {
+    fn select_corner(
+        has_west_wall: bool,
+        has_north_wall: bool,
+        has_east_wall: bool,
+        has_south_wall: bool,
+    ) -> char {
+        let west = '\u{2578}';
+        let north = '\u{2579}';
+        let east = '\u{257a}';
+        let south = '\u{257b}';
+        let horz = '\u{2501}';
+        let vert = '\u{2503}';
+        let north_west = '\u{251b}';
+        let north_east = '\u{2517}';
+        let south_west = '\u{2513}';
+        let south_east = '\u{250f}';
+        let west_vert = '\u{252b}';
+        let north_horz = '\u{253b}';
+        let east_vert = '\u{2523}';
+        let south_horz = '\u{2533}';
+        let cross = '\u{254b}';
+
+        match (has_west_wall, has_north_wall, has_east_wall, has_south_wall) {
+            (true, false, false, false) => west,
+            (false, true, false, false) => north,
+            (false, false, true, false) => east,
+            (false, false, false, true) => south,
+            (true, false, true, false) => horz,
+            (false, true, false, true) => vert,
+            (true, true, false, false) => north_west,
+            (false, true, true, false) => north_east,
+            (true, false, false, true) => south_west,
+            (false, false, true, true) => south_east,
+            (true, true, false, true) => west_vert,
+            (true, true, true, false) => north_horz,
+            (false, true, true, true) => east_vert,
+            (true, false, true, true) => south_horz,
+            (true, true, true, true) => cross,
+            invalid_has_walls => panic!("Given invalid has walls: {:?}", invalid_has_walls),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 pub enum SavePictureFormat {
     /// PNG file format
