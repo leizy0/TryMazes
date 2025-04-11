@@ -30,9 +30,9 @@ fn main() -> Result<(), Error> {
     let maze = generator.generate(maze_input.width, maze_input.height);
     match maze_input.action {
         MazeAction::Show { category } => match category {
-            MazeShowCategory::ASCII => println!("{}", AsciiMazeDisplay(&maze)),
-            MazeShowCategory::UNICODE => println!("{}", UnicodeDisplay(&maze)),
-            MazeShowCategory::GUI => {
+            MazeShowCategory::Ascii => println!("{}", AsciiMazeDisplay(&maze)),
+            MazeShowCategory::Unicode => println!("{}", UnicodeDisplay(&maze)),
+            MazeShowCategory::Gui => {
                 GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH).show()?
             }
         },
@@ -113,11 +113,11 @@ enum MazeAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
 enum MazeShowCategory {
     /// Using ascii characters to display maze
-    ASCII,
+    Ascii,
     /// Using unicode box characters to display maze
-    UNICODE,
+    Unicode,
     /// Using GUI to display maze in graphics
-    GUI,
+    Gui,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Args)]

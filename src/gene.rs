@@ -102,7 +102,7 @@ impl MazeGenerator for SideWinderMazeGenerator {
                     };
                     maze.connect_to(r_ind, out_ind, vert_dir);
                     run_start_ind = if is_horz_reverse {
-                        c_ind.checked_sub(1).unwrap_or(0)
+                        c_ind.saturating_sub(1)
                     } else {
                         c_ind + 1
                     };

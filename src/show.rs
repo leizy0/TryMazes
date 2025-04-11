@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Display, u8, u32};
+use std::{cell::RefCell, fmt::Display};
 
 use anyhow::{Error as AnyError, Result};
 use clap::ValueEnum;
@@ -24,7 +24,7 @@ pub enum Error {
 #[derive(Debug, Clone, Copy)]
 pub struct AsciiMazeDisplay<'a>(pub &'a Maze);
 
-impl<'a> Display for AsciiMazeDisplay<'a> {
+impl Display for AsciiMazeDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let horz_wall = "---";
         let vert_wall = "|";
@@ -315,12 +315,14 @@ impl<'a> GUIMazeShow<'a> {
             (600, 800)
         };
 
-        let mut wnd_options = WindowOptions::default();
-        wnd_options.resize = true;
-        wnd_options.scale_mode = if width > wnd_width || height > wnd_height {
-            ScaleMode::AspectRatioStretch
-        } else {
-            ScaleMode::Center
+        let wnd_options = WindowOptions {
+            resize: true,
+            scale_mode: if width > wnd_width || height > wnd_height {
+                ScaleMode::AspectRatioStretch
+            } else {
+                ScaleMode::Center
+            },
+            ..Default::default()
         };
         let mut window = Window::new(
             "Maze Demo - ESC to exit",
@@ -334,7 +336,7 @@ impl<'a> GUIMazeShow<'a> {
         window.set_target_fps(60);
 
         while window.is_open() && !window.is_key_down(Key::Escape) {
-            window.update_with_buffer(&pixels, width, height)?;
+            window.update_with_buffer(pixels, width, height)?;
         }
 
         Ok(())
