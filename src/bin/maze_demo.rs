@@ -5,7 +5,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use try_mazes::{
     gene::{
         AldousBroderMazeGenerator, BTreeMazeGenerator, DiagonalDirection, MazeGenerator,
-        SideWinderMazeGenerator,
+        SideWinderMazeGenerator, WilsonMazeGenerator,
     },
     show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat, UnicodeDisplay},
 };
@@ -30,6 +30,7 @@ fn main() -> Result<(), Error> {
             aldous_broder: true,
             ..
         } => &AldousBroderMazeGenerator,
+        MazeGenAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
         _ => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
         ),
@@ -107,6 +108,9 @@ struct MazeGenAlgorithm {
     /// Using Aldous-Broder algorithm
     #[arg(long, group = "algorithm")]
     aldous_broder: bool,
+    /// Using Wilson's algorithm
+    #[arg(long, group = "algorithm")]
+    wilson: bool,
     /// Candidate directions to connect
     #[arg(short, long, group = "connect direction")]
     con_dir: Option<DiagonalDirection>,

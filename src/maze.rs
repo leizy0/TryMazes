@@ -61,6 +61,11 @@ impl Position {
             _ => None,
         }
     }
+
+    pub fn flat_ind(&self, row_width: usize) -> usize {
+        debug_assert!(self.c < row_width);
+        self.r * row_width + self.c
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -136,7 +141,7 @@ impl Maze {
 
     fn pos_to_ind(&self, pos: &Position) -> Option<usize> {
         if pos.r < self.height && pos.c < self.width {
-            Some(pos.r * self.width + pos.c)
+            Some(pos.flat_ind(self.width))
         } else {
             None
         }
