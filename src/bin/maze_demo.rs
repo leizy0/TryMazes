@@ -3,7 +3,10 @@ use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 use anyhow::Error;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use try_mazes::{
-    gene::{BTreeMazeGenerator, DiagonalDirection, MazeGenerator, SideWinderMazeGenerator},
+    gene::{
+        AldousBroderMazeGenerator, BTreeMazeGenerator, DiagonalDirection, MazeGenerator,
+        SideWinderMazeGenerator,
+    },
     show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat, UnicodeDisplay},
 };
 
@@ -23,6 +26,10 @@ fn main() -> Result<(), Error> {
             con_dir: Some(dir),
             ..
         } => &SideWinderMazeGenerator::new(dir),
+        MazeGenAlgorithm {
+            aldous_broder: true,
+            ..
+        } => &AldousBroderMazeGenerator,
         _ => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
         ),
@@ -97,6 +104,9 @@ struct MazeGenAlgorithm {
     /// Using sidewinder algorithm
     #[arg(long, group = "algorithm", requires = "connect direction")]
     sidewinder: bool,
+    /// Using Aldous-Broder algorithm
+    #[arg(long, group = "algorithm")]
+    aldous_broder: bool,
     /// Candidate directions to connect
     #[arg(short, long, group = "connect direction")]
     con_dir: Option<DiagonalDirection>,

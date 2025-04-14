@@ -9,7 +9,7 @@ use skia_safe::{
 };
 use thiserror::Error;
 
-use crate::maze::{Direction, Maze};
+use crate::maze::{Direction, Maze, Position};
 
 #[derive(Debug, Clone, Error)]
 pub enum Error {
@@ -42,7 +42,8 @@ impl Display for AsciiMazeDisplay<'_> {
             ceil_line.push_str(corner);
             body_line.push_str(vert_wall);
             for c_ind in 0..width {
-                ceil_line.push_str(if maze.is_connect_to(r_ind, c_ind, Direction::North) {
+                let pos = Position::new(r_ind, c_ind);
+                ceil_line.push_str(if maze.is_connect_to(&pos, Direction::North) {
                     horz_empty
                 } else {
                     horz_wall
@@ -50,7 +51,7 @@ impl Display for AsciiMazeDisplay<'_> {
                 ceil_line.push_str(corner);
 
                 body_line.push_str(horz_empty);
-                body_line.push_str(if maze.is_connect_to(r_ind, c_ind, Direction::East) {
+                body_line.push_str(if maze.is_connect_to(&pos, Direction::East) {
                     vert_empty
                 } else {
                     vert_wall
@@ -91,9 +92,10 @@ impl Display for UnicodeDisplay<'_> {
             body.clear();
             let mut has_west_wall = false;
             for c_ind in 0..width {
-                let has_east_wall = !self.0.is_connect_to(r_ind, c_ind, Direction::North);
+                let pos = Position::new(r_ind, c_ind);
+                let has_east_wall = !self.0.is_connect_to(&pos, Direction::North);
                 let has_north_wall = last_row_has_vert_wall[c_ind];
-                let has_south_wall = !self.0.is_connect_to(r_ind, c_ind, Direction::West);
+                let has_south_wall = !self.0.is_connect_to(&pos, Direction::West);
                 let corner = Self::select_corner(
                     has_west_wall,
                     has_north_wall,
@@ -274,13 +276,14 @@ impl<'a> GUIMazeShow<'a> {
             let mut cell_x0 = 0;
             let cell_y1 = cell_y0 + cell_interval;
             for c_ind in 0..width {
+                let pos = Position::new(r_ind, c_ind);
                 let cell_x1 = cell_x0 + cell_interval;
-                if !self.maze.is_connect_to(r_ind, c_ind, Direction::North) {
+                if !self.maze.is_connect_to(&pos, Direction::North) {
                     path.move_to((cell_x0, cell_y0 + stroke_offset));
                     path.line_to((cell_x1 + wall_thickness, cell_y0 + stroke_offset));
                 }
 
-                if !self.maze.is_connect_to(r_ind, c_ind, Direction::West) {
+                if !self.maze.is_connect_to(&pos, Direction::West) {
                     path.move_to((cell_x0 + stroke_offset, cell_y0));
                     path.line_to((cell_x0 + stroke_offset, cell_y1 + wall_thickness));
                 }
