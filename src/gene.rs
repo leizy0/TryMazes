@@ -219,3 +219,79 @@ impl MazeGenerator for WilsonMazeGenerator {
         maze
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct HuntAndKillMazeGenerator;
+
+impl MazeGenerator for HuntAndKillMazeGenerator {
+    fn generate(&self, width: usize, height: usize) -> Maze {
+        let mut maze = Maze::new(width, height);
+        let mut visited_marks = vec![false; width * height];
+        let mut rng = rand::rng();
+        let mut cur_pos = Position::random(&mut rng, width, height);
+        let mut unvisited_cells_n = visited_marks.len();
+        let mut candidate_neighbors = [(Direction::North, Position::new(0, 0)); 4];
+        while unvisited_cells_n > 0 {
+            // Kill phase.
+            let mut candidates_n = 0;
+            loop {
+                visited_marks[cur_pos.flat_ind(width)] = true;
+                unvisited_cells_n -= 1;
+                // Select an unvisited candidate randomly.
+                candidates_n = 0;
+                for candidate in Direction::all_dirs().iter().filter_map(|dir| {
+                    maze.neighbor_pos(&cur_pos, *dir)
+                        .filter(|neighbor| !visited_marks[neighbor.flat_ind(width)])
+                        .map(|neighbor| (*dir, neighbor))
+                }) {
+                    candidate_neighbors[candidates_n] = candidate;
+                    candidates_n += 1;
+                }
+
+                if candidates_n == 0 {
+                    break;
+                }
+
+                let candidate_ind = rng.random_range(0..candidates_n);
+                let (candidate_dir, candidate_pos) = candidate_neighbors[candidate_ind];
+                maze.connect_to(&cur_pos, candidate_dir);
+                cur_pos = candidate_pos;
+            }
+
+            if unvisited_cells_n == 0 {
+                break;
+            }
+
+            // Hunt phase.
+            'hunt: for r_ind in 0..height {
+                for c_ind in 0..width {
+                    let hunt_pos = Position::new(r_ind, c_ind);
+                    if !visited_marks[hunt_pos.flat_ind(width)] {
+                        // Select a visited candidate randomly.
+                        candidates_n = 0;
+                        for candidate in Direction::all_dirs().iter().filter_map(|dir| {
+                            maze.neighbor_pos(&hunt_pos, *dir)
+                                .filter(|neighbor| visited_marks[neighbor.flat_ind(width)])
+                                .map(|neighbor| (*dir, neighbor))
+                        }) {
+                            candidate_neighbors[candidates_n] = candidate;
+                            candidates_n += 1;
+                        }
+
+                        if candidates_n == 0 {
+                            continue;
+                        }
+
+                        let candidate_ind = rng.random_range(0..candidates_n);
+                        let (candidate_dir, candidate_pos) = candidate_neighbors[candidate_ind];
+                        maze.connect_to(&candidate_pos, candidate_dir.reverse());
+                        cur_pos = hunt_pos;
+                        break 'hunt;
+                    }
+                }
+            }
+        }
+
+        maze
+    }
+}

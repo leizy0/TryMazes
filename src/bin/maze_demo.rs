@@ -4,8 +4,8 @@ use anyhow::Error;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use try_mazes::{
     gene::{
-        AldousBroderMazeGenerator, BTreeMazeGenerator, DiagonalDirection, MazeGenerator,
-        SideWinderMazeGenerator, WilsonMazeGenerator,
+        AldousBroderMazeGenerator, BTreeMazeGenerator, DiagonalDirection, HuntAndKillMazeGenerator,
+        MazeGenerator, SideWinderMazeGenerator, WilsonMazeGenerator,
     },
     show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat, UnicodeDisplay},
 };
@@ -30,6 +30,10 @@ fn main() -> Result<(), Error> {
             aldous_broder: true,
             ..
         } => &AldousBroderMazeGenerator,
+        MazeGenAlgorithm {
+            hunt_and_kill: true,
+            ..
+        } => &HuntAndKillMazeGenerator,
         MazeGenAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
         _ => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
@@ -111,6 +115,9 @@ struct MazeGenAlgorithm {
     /// Using Wilson's algorithm
     #[arg(long, group = "algorithm")]
     wilson: bool,
+    /// Using Hunt-and-Kill algorithm
+    #[arg(long, group = "algorithm")]
+    hunt_and_kill: bool,
     /// Candidate directions to connect
     #[arg(short, long, group = "connect direction")]
     con_dir: Option<DiagonalDirection>,
