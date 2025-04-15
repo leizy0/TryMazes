@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter,
+};
 
 use clap::ValueEnum;
 use rand::{Rng, seq::IteratorRandom};
@@ -290,6 +293,58 @@ impl MazeGenerator for HuntAndKillMazeGenerator {
                     }
                 }
             }
+        }
+
+        maze
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct RecursiveBacktrackerMazeGenerator;
+
+impl MazeGenerator for RecursiveBacktrackerMazeGenerator {
+    fn generate(&self, width: usize, height: usize) -> Maze {
+        let mut maze = Maze::new(width, height);
+        if width == 0 || height == 0 {
+            return maze;
+        }
+
+        let mut visited_marks = vec![false; width * height];
+        let mut unvisited_cells_n = visited_marks.len();
+        let mut candidate_neighbors = [(Direction::North, Position::new(0, 0)); 4];
+        let mut rng = rand::rng();
+        let start_pos = Position::random(&mut rng, width, height);
+        let mut visited_stack = Vec::from_iter(iter::once(start_pos));
+        while unvisited_cells_n > 0 {
+            let Some(cur_pos) = visited_stack.last().copied() else {
+                break;
+            };
+            if !visited_marks[cur_pos.flat_ind(width)] {
+                visited_marks[cur_pos.flat_ind(width)] = true;
+                unvisited_cells_n -= 1;
+            }
+
+            // Select an unvisited candidate randomly.
+            let mut candidates_n = 0;
+            for candidate in Direction::all_dirs().iter().filter_map(|dir| {
+                maze.neighbor_pos(&cur_pos, *dir)
+                    .filter(|neighbor| !visited_marks[neighbor.flat_ind(width)])
+                    .map(|neighbor| (*dir, neighbor))
+            }) {
+                candidate_neighbors[candidates_n] = candidate;
+                candidates_n += 1;
+            }
+
+            if candidates_n == 0 {
+                // At dead end, try to backtrack.
+                visited_stack.pop();
+                continue;
+            }
+
+            let candidate_ind = rng.random_range(0..candidates_n);
+            let (candidate_dir, candidate_pos) = candidate_neighbors[candidate_ind];
+            maze.connect_to(&cur_pos, candidate_dir);
+            visited_stack.push(candidate_pos);
         }
 
         maze

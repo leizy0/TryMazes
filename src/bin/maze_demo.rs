@@ -5,7 +5,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use try_mazes::{
     gene::{
         AldousBroderMazeGenerator, BTreeMazeGenerator, DiagonalDirection, HuntAndKillMazeGenerator,
-        MazeGenerator, SideWinderMazeGenerator, WilsonMazeGenerator,
+        MazeGenerator, RecursiveBacktrackerMazeGenerator, SideWinderMazeGenerator,
+        WilsonMazeGenerator,
     },
     show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat, UnicodeDisplay},
 };
@@ -34,6 +35,10 @@ fn main() -> Result<(), Error> {
             hunt_and_kill: true,
             ..
         } => &HuntAndKillMazeGenerator,
+        MazeGenAlgorithm {
+            recursive_backtracker: true,
+            ..
+        } => &RecursiveBacktrackerMazeGenerator,
         MazeGenAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
         _ => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
@@ -118,6 +123,9 @@ struct MazeGenAlgorithm {
     /// Using Hunt-and-Kill algorithm
     #[arg(long, group = "algorithm")]
     hunt_and_kill: bool,
+    /// Using recursive backtracker algorithm
+    #[arg(long, group = "algorithm")]
+    recursive_backtracker: bool,
     /// Candidate directions to connect
     #[arg(short, long, group = "connect direction")]
     con_dir: Option<DiagonalDirection>,
