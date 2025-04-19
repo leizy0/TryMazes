@@ -29,46 +29,79 @@ impl Display for AsciiMazeDisplay<'_> {
         let horz_wall = "---";
         let vert_wall = "|";
         let horz_empty = "   "; // 3 spaces.
-        let vert_empty = " "; // 1 spaces.
+        let vert_empty = " "; // 1 space.
         let corner = "+";
 
         let maze = self.0;
         let (width, height) = maze.size();
-        let horz_line_len = width * (horz_wall.len() + corner.len()) + corner.len();
-        let mut ceil_line = String::with_capacity(horz_line_len);
-        let mut body_line = String::with_capacity(horz_line_len);
+        let mut ceil_line = String::new();
+        let mut body_line = String::new();
         for r_ind in 0..height {
-            // The first cell in row.
-            ceil_line.push_str(corner);
-            body_line.push_str(vert_wall);
+            ceil_line.clear();
+            body_line.clear();
             for c_ind in 0..width {
                 let pos = Position::new(r_ind, c_ind);
-                ceil_line.push_str(if maze.is_connect_to(&pos, Direction::North) {
-                    horz_empty
-                } else {
-                    horz_wall
-                });
                 ceil_line.push_str(corner);
-
-                body_line.push_str(horz_empty);
-                body_line.push_str(if maze.is_connect_to(&pos, Direction::East) {
-                    vert_empty
+                if maze.is_cell(&pos) {
+                    ceil_line.push_str(if !maze.is_connect_to(&pos, Direction::North) {
+                        horz_wall
+                    } else {
+                        horz_empty
+                    });
+                    body_line.push_str(if !maze.is_connect_to(&pos, Direction::West) {
+                        vert_wall
+                    } else {
+                        vert_empty
+                    });
                 } else {
-                    vert_wall
-                });
+                    ceil_line.push_str(
+                        if pos
+                            .neighbor(Direction::North)
+                            .is_some_and(|neighbor| maze.is_cell(&neighbor))
+                        {
+                            horz_wall
+                        } else {
+                            horz_empty
+                        },
+                    );
+                    body_line.push_str(
+                        if pos
+                            .neighbor(Direction::West)
+                            .is_some_and(|neighbor| maze.is_cell(&neighbor))
+                        {
+                            vert_wall
+                        } else {
+                            vert_empty
+                        },
+                    );
+                }
+                body_line.push_str(horz_empty);
             }
+            ceil_line.push_str(corner);
+            body_line.push_str(if maze.is_cell(&Position::new(r_ind, width - 1)) {
+                vert_wall
+            } else {
+                vert_empty
+            });
 
             writeln!(f, "{}", ceil_line)?;
             writeln!(f, "{}", body_line)?;
-            ceil_line.clear();
-            body_line.clear();
         }
 
         // The bottom border.
         ceil_line.clear();
-        for _ in 0..width {
+        for c_ind in 0..width {
             ceil_line.push_str(corner);
-            ceil_line.push_str(horz_wall);
+            ceil_line.push_str(
+                if Position::new(height, c_ind)
+                    .neighbor(Direction::North)
+                    .is_some_and(|neighbor| maze.is_cell(&neighbor))
+                {
+                    horz_wall
+                } else {
+                    horz_empty
+                },
+            );
         }
         ceil_line.push_str(corner);
         write!(f, "{}", ceil_line)
@@ -83,19 +116,32 @@ impl Display for UnicodeDisplay<'_> {
         let horz = '\u{2501}';
         let vert = '\u{2503}';
 
-        let (width, height) = self.0.size();
+        let maze = self.0;
+        let (width, height) = maze.size();
         let mut ceil = String::new();
         let mut body = String::new();
         let mut last_row_has_vert_wall = vec![false; width];
+        let mut east_column_has_north_wall = false;
         for r_ind in 0..height {
             ceil.clear();
             body.clear();
             let mut has_west_wall = false;
             for c_ind in 0..width {
                 let pos = Position::new(r_ind, c_ind);
-                let has_east_wall = !self.0.is_connect_to(&pos, Direction::North);
+                let is_cell = maze.is_cell(&pos);
+                let has_east_wall = if is_cell {
+                    !maze.is_connect_to(&pos, Direction::North)
+                } else {
+                    pos.neighbor(Direction::North)
+                        .is_some_and(|neighbor| maze.is_cell(&neighbor))
+                };
                 let has_north_wall = last_row_has_vert_wall[c_ind];
-                let has_south_wall = !self.0.is_connect_to(&pos, Direction::West);
+                let has_south_wall = if is_cell {
+                    !maze.is_connect_to(&pos, Direction::West)
+                } else {
+                    pos.neighbor(Direction::West)
+                        .is_some_and(|neighbor| maze.is_cell(&neighbor))
+                };
                 let corner = Self::select_corner(
                     has_west_wall,
                     has_north_wall,
@@ -111,23 +157,42 @@ impl Display for UnicodeDisplay<'_> {
                 has_west_wall = has_east_wall;
             }
 
-            ceil.push(Self::select_corner(has_west_wall, r_ind != 0, false, true));
-            body.push(vert);
+            let has_south_wall = width
+                .checked_sub(1)
+                .is_some_and(|c_ind| maze.is_cell(&Position::new(r_ind, c_ind)));
+            ceil.push(Self::select_corner(
+                has_west_wall,
+                east_column_has_north_wall,
+                false,
+                has_south_wall,
+            ));
+            body.push(if has_south_wall { vert } else { ' ' });
+            east_column_has_north_wall = has_south_wall;
             writeln!(f, "{}", ceil)?;
             writeln!(f, "{}", body)?;
         }
 
         ceil.clear();
+        let mut south_row_has_west_wall = false;
         for c_ind in 0..width {
+            let has_east_wall = height
+                .checked_sub(1)
+                .is_some_and(|r_ind| maze.is_cell(&Position::new(r_ind, c_ind)));
             ceil.push(Self::select_corner(
-                c_ind != 0,
+                south_row_has_west_wall,
                 last_row_has_vert_wall[c_ind],
-                true,
+                has_east_wall,
                 false,
             ));
-            ceil.push(horz);
+            ceil.push(if has_east_wall { horz } else { ' ' });
+            south_row_has_west_wall = has_east_wall;
         }
-        ceil.push(Self::select_corner(true, true, false, false));
+        ceil.push(Self::select_corner(
+            south_row_has_west_wall,
+            east_column_has_north_wall,
+            false,
+            false,
+        ));
         write!(f, "{}", ceil)
     }
 }
@@ -156,6 +221,7 @@ impl UnicodeDisplay<'_> {
         let cross = '\u{254b}';
 
         match (has_west_wall, has_north_wall, has_east_wall, has_south_wall) {
+            (false, false, false, false) => ' ',
             (true, false, false, false) => west,
             (false, true, false, false) => north,
             (false, false, true, false) => east,
@@ -171,7 +237,6 @@ impl UnicodeDisplay<'_> {
             (false, true, true, true) => east_vert,
             (true, false, true, true) => south_horz,
             (true, true, true, true) => cross,
-            invalid_has_walls => panic!("Given invalid has walls: {:?}", invalid_has_walls),
         }
     }
 }
@@ -278,12 +343,24 @@ impl<'a> GUIMazeShow<'a> {
             for c_ind in 0..width {
                 let pos = Position::new(r_ind, c_ind);
                 let cell_x1 = cell_x0 + cell_interval;
-                if !self.maze.is_connect_to(&pos, Direction::North) {
+                let has_north_wall = if self.maze.is_cell(&pos) {
+                    !self.maze.is_connect_to(&pos, Direction::North)
+                } else {
+                    pos.neighbor(Direction::North)
+                        .is_some_and(|neighbor| self.maze.is_cell(&neighbor))
+                };
+                let has_west_wall = if self.maze.is_cell(&pos) {
+                    !self.maze.is_connect_to(&pos, Direction::West)
+                } else {
+                    pos.neighbor(Direction::West)
+                        .is_some_and(|neighbor| self.maze.is_cell(&neighbor))
+                };
+                if has_north_wall {
                     path.move_to((cell_x0, cell_y0 + stroke_offset));
                     path.line_to((cell_x1 + wall_thickness, cell_y0 + stroke_offset));
                 }
 
-                if !self.maze.is_connect_to(&pos, Direction::West) {
+                if has_west_wall {
                     path.move_to((cell_x0 + stroke_offset, cell_y0));
                     path.line_to((cell_x0 + stroke_offset, cell_y1 + wall_thickness));
                 }
@@ -291,20 +368,29 @@ impl<'a> GUIMazeShow<'a> {
                 cell_x0 += cell_interval;
             }
             // East border
-            path.move_to((cell_x0 + stroke_offset, cell_y0));
-            path.line_to((cell_x0 + stroke_offset, cell_y1 + wall_thickness));
+            if width
+                .checked_sub(1)
+                .is_some_and(|c_ind| self.maze.is_cell(&Position::new(r_ind, c_ind)))
+            {
+                path.move_to((cell_x0 + stroke_offset, cell_y0));
+                path.line_to((cell_x0 + stroke_offset, cell_y1 + wall_thickness));
+            }
 
             cell_y0 = cell_y1;
         }
 
         // South border
-        let mut cell_x0 = 0;
-        for _ in 0..width {
-            let cell_x1 = cell_x0 + cell_interval;
-            path.move_to((cell_x0, cell_y0 + stroke_offset));
-            path.line_to((cell_x1 + wall_thickness, cell_y0 + stroke_offset));
+        if let Some(r_ind) = height.checked_sub(1) {
+            let mut cell_x0 = 0;
+            for c_ind in 0..width {
+                let cell_x1 = cell_x0 + cell_interval;
+                if self.maze.is_cell(&Position::new(r_ind, c_ind)) {
+                    path.move_to((cell_x0, cell_y0 + stroke_offset));
+                    path.line_to((cell_x1 + wall_thickness, cell_y0 + stroke_offset));
+                }
 
-            cell_x0 = cell_x1;
+                cell_x0 = cell_x1;
+            }
         }
         surface.canvas().draw_path(&path, &paint);
 

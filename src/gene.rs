@@ -6,7 +6,7 @@ use std::{
 use clap::ValueEnum;
 use rand::{Rng, seq::IteratorRandom};
 
-use crate::maze::{Direction, Maze, Position};
+use crate::maze::{Direction, Mask, Maze, Position};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Hash)]
 pub enum DiagonalDirection {
@@ -28,28 +28,34 @@ impl DiagonalDirection {
 }
 
 pub trait MazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze;
+    fn generate(&self) -> Maze;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BTreeMazeGenerator {
+    width: usize,
+    height: usize,
     con_dir: DiagonalDirection,
 }
 
 impl BTreeMazeGenerator {
-    pub fn new(con_dir: DiagonalDirection) -> Self {
-        Self { con_dir }
+    pub fn new(width: usize, height: usize, con_dir: DiagonalDirection) -> Self {
+        Self {
+            width,
+            height,
+            con_dir,
+        }
     }
 }
 
 impl MazeGenerator for BTreeMazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze {
-        let mut maze = Maze::new(width, height);
+    fn generate(&self) -> Maze {
+        let mut maze = Maze::new(self.width, self.height);
         let mut rng = rand::rng();
         let (horz_dir, vert_dir) = self.con_dir.hv_dirs();
         let connect_dirs = [horz_dir, vert_dir];
-        for r_ind in 0..height {
-            for c_ind in 0..width {
+        for r_ind in 0..self.height {
+            for c_ind in 0..self.width {
                 let pos = Position::new(r_ind, c_ind);
                 let at_horz_border = maze.is_at_border(&pos, horz_dir);
                 let at_vert_border = maze.is_at_border(&pos, vert_dir);
@@ -73,26 +79,32 @@ impl MazeGenerator for BTreeMazeGenerator {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SideWinderMazeGenerator {
+    width: usize,
+    height: usize,
     con_dir: DiagonalDirection,
 }
 
 impl SideWinderMazeGenerator {
-    pub fn new(con_dir: DiagonalDirection) -> Self {
-        Self { con_dir }
+    pub fn new(width: usize, height: usize, con_dir: DiagonalDirection) -> Self {
+        Self {
+            width,
+            height,
+            con_dir,
+        }
     }
 }
 
 impl MazeGenerator for SideWinderMazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze {
-        let mut maze = Maze::new(width, height);
+    fn generate(&self) -> Maze {
+        let mut maze = Maze::new(self.width, self.height);
         let mut rng = rand::rng();
         let (horz_dir, vert_dir) = self.con_dir.hv_dirs();
         let is_horz_reverse = horz_dir == Direction::West;
-        for r_ind in 0..height {
-            let mut run_start_ind = if is_horz_reverse { width - 1 } else { 0 };
-            for c_ind in 0..width {
+        for r_ind in 0..self.height {
+            let mut run_start_ind = if is_horz_reverse { self.width - 1 } else { 0 };
+            for c_ind in 0..self.width {
                 let c_ind = if is_horz_reverse {
-                    width - 1 - c_ind
+                    self.width - 1 - c_ind
                 } else {
                     c_ind
                 };
@@ -123,18 +135,29 @@ impl MazeGenerator for SideWinderMazeGenerator {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct AldousBroderMazeGenerator;
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct AldousBroderMazeGenerator {
+    width: usize,
+    height: usize,
+    mask: Option<Mask>,
+}
 
 impl MazeGenerator for AldousBroderMazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze {
-        let mut maze = Maze::new(width, height);
-        let mut visited_marks = vec![false; width * height];
+    fn generate(&self) -> Maze {
+        let mut maze = if let Some(mask) = self.mask.as_ref() {
+            Maze::with_mask(mask)
+        } else {
+            Maze::new(self.width, self.height)
+        };
+
+        let mut visited_marks = vec![false; self.width * self.height];
         let mut candidate_neighbors = [(Direction::North, Position::new(0, 0)); 4];
         let mut rng = rand::rng();
-        let mut cur_pos = Position::random(&mut rng, width, height);
-        visited_marks[cur_pos.flat_ind(width)] = true;
-        let mut unvisited_cells_n = width * height - 1;
+        let Some(mut cur_pos) = maze.random_cell_pos(&mut rng) else {
+            return maze;
+        };
+        visited_marks[cur_pos.flat_ind(self.width)] = true;
+        let mut unvisited_cells_n = maze.cells_n() - 1;
         while unvisited_cells_n > 0 {
             let mut candidates_n = 0;
             for candidate in Direction::all_dirs()
@@ -147,9 +170,9 @@ impl MazeGenerator for AldousBroderMazeGenerator {
 
             let candidate_ind = rng.random_range(0..candidates_n);
             let (candidate_dir, candidate_pos) = candidate_neighbors[candidate_ind];
-            if !visited_marks[candidate_pos.flat_ind(width)] {
+            if !visited_marks[candidate_pos.flat_ind(self.width)] {
                 maze.connect_to(&cur_pos, candidate_dir);
-                visited_marks[candidate_pos.flat_ind(width)] = true;
+                visited_marks[candidate_pos.flat_ind(self.width)] = true;
                 unvisited_cells_n -= 1;
             }
 
@@ -160,15 +183,48 @@ impl MazeGenerator for AldousBroderMazeGenerator {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-pub struct WilsonMazeGenerator;
+impl AldousBroderMazeGenerator {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            width,
+            height,
+            mask: None,
+        }
+    }
+
+    pub fn with_mask(mask: Mask) -> Self {
+        let (width, height) = mask.size();
+        Self {
+            width,
+            height,
+            mask: Some(mask),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+pub struct WilsonMazeGenerator {
+    width: usize,
+    height: usize,
+    mask: Option<Mask>,
+}
 
 impl MazeGenerator for WilsonMazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze {
-        let mut maze = Maze::new(width, height);
-        let mut unvisited_pos = (0..height)
-            .flat_map(|r| (0..width).map(move |c| Position::new(r, c)))
-            .collect::<HashSet<_>>();
+    fn generate(&self) -> Maze {
+        let (mut maze, mut unvisited_pos) = if let Some(mask) = self.mask.as_ref() {
+            (
+                Maze::with_mask(mask),
+                mask.cell_pos_iter().collect::<HashSet<_>>(),
+            )
+        } else {
+            (
+                Maze::new(self.width, self.height),
+                (0..self.height)
+                    .flat_map(|r| (0..self.width).map(move |c| Position::new(r, c)))
+                    .collect::<HashSet<_>>(),
+            )
+        };
+
         let mut rng = rand::rng();
         let Some(first_visited_pos) = unvisited_pos.iter().choose(&mut rng).copied() else {
             return maze;
@@ -223,28 +279,58 @@ impl MazeGenerator for WilsonMazeGenerator {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct HuntAndKillMazeGenerator;
+impl WilsonMazeGenerator {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            width,
+            height,
+            mask: None,
+        }
+    }
+
+    pub fn with_mask(mask: Mask) -> Self {
+        let (width, height) = mask.size();
+        Self {
+            width,
+            height,
+            mask: Some(mask),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct HuntAndKillMazeGenerator {
+    width: usize,
+    height: usize,
+    mask: Option<Mask>,
+}
 
 impl MazeGenerator for HuntAndKillMazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze {
-        let mut maze = Maze::new(width, height);
-        let mut visited_marks = vec![false; width * height];
+    fn generate(&self) -> Maze {
+        let mut maze = if let Some(mask) = self.mask.as_ref() {
+            Maze::with_mask(mask)
+        } else {
+            Maze::new(self.width, self.height)
+        };
+
+        let mut visited_marks = vec![false; self.width * self.height];
         let mut rng = rand::rng();
-        let mut cur_pos = Position::random(&mut rng, width, height);
-        let mut unvisited_cells_n = visited_marks.len();
+        let Some(mut cur_pos) = maze.random_cell_pos(&mut rng) else {
+            return maze;
+        };
+        let mut unvisited_cells_n = maze.cells_n();
         let mut candidate_neighbors = [(Direction::North, Position::new(0, 0)); 4];
         while unvisited_cells_n > 0 {
             // Kill phase.
             let mut candidates_n = 0;
             loop {
-                visited_marks[cur_pos.flat_ind(width)] = true;
+                visited_marks[cur_pos.flat_ind(self.width)] = true;
                 unvisited_cells_n -= 1;
                 // Select an unvisited candidate randomly.
                 candidates_n = 0;
                 for candidate in Direction::all_dirs().iter().filter_map(|dir| {
                     maze.neighbor_pos(&cur_pos, *dir)
-                        .filter(|neighbor| !visited_marks[neighbor.flat_ind(width)])
+                        .filter(|neighbor| !visited_marks[neighbor.flat_ind(self.width)])
                         .map(|neighbor| (*dir, neighbor))
                 }) {
                     candidate_neighbors[candidates_n] = candidate;
@@ -266,15 +352,15 @@ impl MazeGenerator for HuntAndKillMazeGenerator {
             }
 
             // Hunt phase.
-            'hunt: for r_ind in 0..height {
-                for c_ind in 0..width {
+            'hunt: for r_ind in 0..self.height {
+                for c_ind in 0..self.width {
                     let hunt_pos = Position::new(r_ind, c_ind);
-                    if !visited_marks[hunt_pos.flat_ind(width)] {
+                    if !visited_marks[hunt_pos.flat_ind(self.width)] {
                         // Select a visited candidate randomly.
                         candidates_n = 0;
                         for candidate in Direction::all_dirs().iter().filter_map(|dir| {
                             maze.neighbor_pos(&hunt_pos, *dir)
-                                .filter(|neighbor| visited_marks[neighbor.flat_ind(width)])
+                                .filter(|neighbor| visited_marks[neighbor.flat_ind(self.width)])
                                 .map(|neighbor| (*dir, neighbor))
                         }) {
                             candidate_neighbors[candidates_n] = candidate;
@@ -299,28 +385,54 @@ impl MazeGenerator for HuntAndKillMazeGenerator {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct RecursiveBacktrackerMazeGenerator;
+impl HuntAndKillMazeGenerator {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            width,
+            height,
+            mask: None,
+        }
+    }
+
+    pub fn with_mask(mask: Mask) -> Self {
+        let (width, height) = mask.size();
+        Self {
+            width,
+            height,
+            mask: Some(mask),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct RecursiveBacktrackerMazeGenerator {
+    width: usize,
+    height: usize,
+    mask: Option<Mask>,
+}
 
 impl MazeGenerator for RecursiveBacktrackerMazeGenerator {
-    fn generate(&self, width: usize, height: usize) -> Maze {
-        let mut maze = Maze::new(width, height);
-        if width == 0 || height == 0 {
-            return maze;
-        }
+    fn generate(&self) -> Maze {
+        let mut maze = if let Some(mask) = self.mask.as_ref() {
+            Maze::with_mask(mask)
+        } else {
+            Maze::new(self.width, self.height)
+        };
 
-        let mut visited_marks = vec![false; width * height];
-        let mut unvisited_cells_n = visited_marks.len();
-        let mut candidate_neighbors = [(Direction::North, Position::new(0, 0)); 4];
         let mut rng = rand::rng();
-        let start_pos = Position::random(&mut rng, width, height);
+        let Some(start_pos) = maze.random_cell_pos(&mut rng) else {
+            return maze;
+        };
+        let mut visited_marks = vec![false; self.width * self.height];
+        let mut unvisited_cells_n = maze.cells_n();
+        let mut candidate_neighbors = [(Direction::North, Position::new(0, 0)); 4];
         let mut visited_stack = Vec::from_iter(iter::once(start_pos));
         while unvisited_cells_n > 0 {
             let Some(cur_pos) = visited_stack.last().copied() else {
                 break;
             };
-            if !visited_marks[cur_pos.flat_ind(width)] {
-                visited_marks[cur_pos.flat_ind(width)] = true;
+            if !visited_marks[cur_pos.flat_ind(self.width)] {
+                visited_marks[cur_pos.flat_ind(self.width)] = true;
                 unvisited_cells_n -= 1;
             }
 
@@ -328,7 +440,7 @@ impl MazeGenerator for RecursiveBacktrackerMazeGenerator {
             let mut candidates_n = 0;
             for candidate in Direction::all_dirs().iter().filter_map(|dir| {
                 maze.neighbor_pos(&cur_pos, *dir)
-                    .filter(|neighbor| !visited_marks[neighbor.flat_ind(width)])
+                    .filter(|neighbor| !visited_marks[neighbor.flat_ind(self.width)])
                     .map(|neighbor| (*dir, neighbor))
             }) {
                 candidate_neighbors[candidates_n] = candidate;
@@ -348,5 +460,24 @@ impl MazeGenerator for RecursiveBacktrackerMazeGenerator {
         }
 
         maze
+    }
+}
+
+impl RecursiveBacktrackerMazeGenerator {
+    pub fn new(width: usize, height: usize) -> Self {
+        Self {
+            width,
+            height,
+            mask: None,
+        }
+    }
+
+    pub fn with_mask(mask: Mask) -> Self {
+        let (width, height) = mask.size();
+        Self {
+            width,
+            height,
+            mask: Some(mask),
+        }
     }
 }
