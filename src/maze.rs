@@ -12,7 +12,7 @@ use image::{GenericImageView, ImageReader, Rgba};
 use rand::{Rng, seq::IteratorRandom};
 use thiserror::Error;
 
-use crate::show::AsciiMazeDisplay;
+use crate::show::{AsciiBoxCharset, MazeCmdDisplay};
 
 #[derive(Debug, Clone, Error)]
 enum Error {
@@ -343,7 +343,7 @@ impl Maze {
 
 impl Display for Maze {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        AsciiMazeDisplay(self).fmt(f)
+        MazeCmdDisplay(self, AsciiBoxCharset).fmt(f)
     }
 }
 

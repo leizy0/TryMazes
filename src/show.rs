@@ -21,102 +21,128 @@ pub enum Error {
     ReadPixelFailure,
 }
 
+pub trait CmdBoxCharset {
+    fn horz_wall(&self) -> &str;
+    fn horz_empty(&self) -> &str;
+    fn vert_wall(&self) -> &str;
+    fn vert_empty(&self) -> &str;
+    fn select_corner(
+        &self,
+        has_west_wall: bool,
+        has_north_wall: bool,
+        has_east_wall: bool,
+        has_south_wall: bool,
+    ) -> &str;
+}
+
 #[derive(Debug, Clone, Copy)]
-pub struct AsciiMazeDisplay<'a>(pub &'a Maze);
+pub struct AsciiBoxCharset;
 
-impl Display for AsciiMazeDisplay<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let horz_wall = "---";
-        let vert_wall = "|";
-        let horz_empty = "   "; // 3 spaces.
-        let vert_empty = " "; // 1 space.
-        let corner = "+";
+impl CmdBoxCharset for AsciiBoxCharset {
+    fn horz_wall(&self) -> &str {
+        "---"
+    }
 
-        let maze = self.0;
-        let (width, height) = maze.size();
-        let mut ceil_line = String::new();
-        let mut body_line = String::new();
-        for r_ind in 0..height {
-            ceil_line.clear();
-            body_line.clear();
-            for c_ind in 0..width {
-                let pos = Position::new(r_ind, c_ind);
-                ceil_line.push_str(corner);
-                if maze.is_cell(&pos) {
-                    ceil_line.push_str(if !maze.is_connect_to(&pos, Direction::North) {
-                        horz_wall
-                    } else {
-                        horz_empty
-                    });
-                    body_line.push_str(if !maze.is_connect_to(&pos, Direction::West) {
-                        vert_wall
-                    } else {
-                        vert_empty
-                    });
-                } else {
-                    ceil_line.push_str(
-                        if pos
-                            .neighbor(Direction::North)
-                            .is_some_and(|neighbor| maze.is_cell(&neighbor))
-                        {
-                            horz_wall
-                        } else {
-                            horz_empty
-                        },
-                    );
-                    body_line.push_str(
-                        if pos
-                            .neighbor(Direction::West)
-                            .is_some_and(|neighbor| maze.is_cell(&neighbor))
-                        {
-                            vert_wall
-                        } else {
-                            vert_empty
-                        },
-                    );
-                }
-                body_line.push_str(horz_empty);
-            }
-            ceil_line.push_str(corner);
-            body_line.push_str(if maze.is_cell(&Position::new(r_ind, width - 1)) {
-                vert_wall
-            } else {
-                vert_empty
-            });
+    fn horz_empty(&self) -> &str {
+        "   "
+    }
 
-            writeln!(f, "{}", ceil_line)?;
-            writeln!(f, "{}", body_line)?;
+    fn vert_wall(&self) -> &str {
+        "|"
+    }
+
+    fn vert_empty(&self) -> &str {
+        " "
+    }
+
+    fn select_corner(
+        &self,
+        has_west_wall: bool,
+        has_north_wall: bool,
+        has_east_wall: bool,
+        has_south_wall: bool,
+    ) -> &str {
+        match (has_west_wall, has_north_wall, has_east_wall, has_south_wall) {
+            (false, false, false, false) => " ",
+            _ => "+",
         }
-
-        // The bottom border.
-        ceil_line.clear();
-        for c_ind in 0..width {
-            ceil_line.push_str(corner);
-            ceil_line.push_str(
-                if Position::new(height, c_ind)
-                    .neighbor(Direction::North)
-                    .is_some_and(|neighbor| maze.is_cell(&neighbor))
-                {
-                    horz_wall
-                } else {
-                    horz_empty
-                },
-            );
-        }
-        ceil_line.push_str(corner);
-        write!(f, "{}", ceil_line)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct UnicodeDisplay<'a>(pub &'a Maze);
+pub struct UnicodeBoxCharset;
 
-impl Display for UnicodeDisplay<'_> {
+impl CmdBoxCharset for UnicodeBoxCharset {
+    fn horz_wall(&self) -> &str {
+        "\u{2501}"
+    }
+
+    fn horz_empty(&self) -> &str {
+        " "
+    }
+
+    fn vert_wall(&self) -> &str {
+        "\u{2503}"
+    }
+
+    fn vert_empty(&self) -> &str {
+        " "
+    }
+
+    fn select_corner(
+        &self,
+        has_west_wall: bool,
+        has_north_wall: bool,
+        has_east_wall: bool,
+        has_south_wall: bool,
+    ) -> &str {
+        let west = "\u{2578}";
+        let north = "\u{2579}";
+        let east = "\u{257a}";
+        let south = "\u{257b}";
+        let horz = "\u{2501}";
+        let vert = "\u{2503}";
+        let north_west = "\u{251b}";
+        let north_east = "\u{2517}";
+        let south_west = "\u{2513}";
+        let south_east = "\u{250f}";
+        let west_vert = "\u{252b}";
+        let north_horz = "\u{253b}";
+        let east_vert = "\u{2523}";
+        let south_horz = "\u{2533}";
+        let cross = "\u{254b}";
+
+        match (has_west_wall, has_north_wall, has_east_wall, has_south_wall) {
+            (false, false, false, false) => " ",
+            (true, false, false, false) => west,
+            (false, true, false, false) => north,
+            (false, false, true, false) => east,
+            (false, false, false, true) => south,
+            (true, false, true, false) => horz,
+            (false, true, false, true) => vert,
+            (true, true, false, false) => north_west,
+            (false, true, true, false) => north_east,
+            (true, false, false, true) => south_west,
+            (false, false, true, true) => south_east,
+            (true, true, false, true) => west_vert,
+            (true, true, true, false) => north_horz,
+            (false, true, true, true) => east_vert,
+            (true, false, true, true) => south_horz,
+            (true, true, true, true) => cross,
+        }
+    }
+}
+
+pub struct MazeCmdDisplay<'a, T: CmdBoxCharset>(pub &'a Maze, pub T);
+
+impl<T: CmdBoxCharset> Display for MazeCmdDisplay<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let horz = '\u{2501}';
-        let vert = '\u{2503}';
+        let Self(maze, charset) = self;
+        let horz_wall = charset.horz_wall();
+        let horz_empty = charset.horz_empty();
+        let vert_wall = charset.vert_wall();
+        let vert_empty = charset.vert_empty();
 
-        let maze = self.0;
         let (width, height) = maze.size();
         let mut ceil = String::new();
         let mut body = String::new();
@@ -142,16 +168,20 @@ impl Display for UnicodeDisplay<'_> {
                     pos.neighbor(Direction::West)
                         .is_some_and(|neighbor| maze.is_cell(&neighbor))
                 };
-                let corner = Self::select_corner(
+                let corner = charset.select_corner(
                     has_west_wall,
                     has_north_wall,
                     has_east_wall,
                     has_south_wall,
                 );
-                ceil.push(corner);
-                ceil.push(if has_east_wall { horz } else { ' ' });
-                body.push(if has_south_wall { vert } else { ' ' });
-                body.push(' ');
+                ceil.push_str(corner);
+                ceil.push_str(if has_east_wall { horz_wall } else { horz_empty });
+                body.push_str(if has_south_wall {
+                    vert_wall
+                } else {
+                    vert_empty
+                });
+                body.push_str(horz_empty);
 
                 last_row_has_vert_wall[c_ind] = has_south_wall;
                 has_west_wall = has_east_wall;
@@ -160,13 +190,17 @@ impl Display for UnicodeDisplay<'_> {
             let has_south_wall = width
                 .checked_sub(1)
                 .is_some_and(|c_ind| maze.is_cell(&Position::new(r_ind, c_ind)));
-            ceil.push(Self::select_corner(
+            ceil.push_str(charset.select_corner(
                 has_west_wall,
                 east_column_has_north_wall,
                 false,
                 has_south_wall,
             ));
-            body.push(if has_south_wall { vert } else { ' ' });
+            body.push_str(if has_south_wall {
+                vert_wall
+            } else {
+                vert_empty
+            });
             east_column_has_north_wall = has_south_wall;
             writeln!(f, "{}", ceil)?;
             writeln!(f, "{}", body)?;
@@ -178,66 +212,22 @@ impl Display for UnicodeDisplay<'_> {
             let has_east_wall = height
                 .checked_sub(1)
                 .is_some_and(|r_ind| maze.is_cell(&Position::new(r_ind, c_ind)));
-            ceil.push(Self::select_corner(
+            ceil.push_str(charset.select_corner(
                 south_row_has_west_wall,
                 last_row_has_vert_wall[c_ind],
                 has_east_wall,
                 false,
             ));
-            ceil.push(if has_east_wall { horz } else { ' ' });
+            ceil.push_str(if has_east_wall { horz_wall } else { horz_empty });
             south_row_has_west_wall = has_east_wall;
         }
-        ceil.push(Self::select_corner(
+        ceil.push_str(charset.select_corner(
             south_row_has_west_wall,
             east_column_has_north_wall,
             false,
             false,
         ));
         write!(f, "{}", ceil)
-    }
-}
-
-impl UnicodeDisplay<'_> {
-    fn select_corner(
-        has_west_wall: bool,
-        has_north_wall: bool,
-        has_east_wall: bool,
-        has_south_wall: bool,
-    ) -> char {
-        let west = '\u{2578}';
-        let north = '\u{2579}';
-        let east = '\u{257a}';
-        let south = '\u{257b}';
-        let horz = '\u{2501}';
-        let vert = '\u{2503}';
-        let north_west = '\u{251b}';
-        let north_east = '\u{2517}';
-        let south_west = '\u{2513}';
-        let south_east = '\u{250f}';
-        let west_vert = '\u{252b}';
-        let north_horz = '\u{253b}';
-        let east_vert = '\u{2523}';
-        let south_horz = '\u{2533}';
-        let cross = '\u{254b}';
-
-        match (has_west_wall, has_north_wall, has_east_wall, has_south_wall) {
-            (false, false, false, false) => ' ',
-            (true, false, false, false) => west,
-            (false, true, false, false) => north,
-            (false, false, true, false) => east,
-            (false, false, false, true) => south,
-            (true, false, true, false) => horz,
-            (false, true, false, true) => vert,
-            (true, true, false, false) => north_west,
-            (false, true, true, false) => north_east,
-            (true, false, false, true) => south_west,
-            (false, false, true, true) => south_east,
-            (true, true, false, true) => west_vert,
-            (true, true, true, false) => north_horz,
-            (false, true, true, true) => east_vert,
-            (true, false, true, true) => south_horz,
-            (true, true, true, true) => cross,
-        }
     }
 }
 

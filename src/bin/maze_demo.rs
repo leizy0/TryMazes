@@ -10,7 +10,7 @@ use try_mazes::{
         WilsonMazeGenerator,
     },
     maze::Mask,
-    show::{AsciiMazeDisplay, GUIMazeShow, SavePictureFormat, UnicodeDisplay},
+    show::{AsciiBoxCharset, GUIMazeShow, MazeCmdDisplay, SavePictureFormat, UnicodeBoxCharset},
 };
 
 fn main() -> Result<(), AnyError> {
@@ -21,8 +21,12 @@ fn main() -> Result<(), AnyError> {
     let generator = make_generator(&maze_input)?;
     let maze = generator.generate();
     match maze_input.action {
-        MazeAction::Show(ShowArgs { ascii: true, .. }) => println!("{}", AsciiMazeDisplay(&maze)),
-        MazeAction::Show(ShowArgs { unicode: true, .. }) => println!("{}", UnicodeDisplay(&maze)),
+        MazeAction::Show(ShowArgs { ascii: true, .. }) => {
+            println!("{}", MazeCmdDisplay(&maze, AsciiBoxCharset))
+        }
+        MazeAction::Show(ShowArgs { unicode: true, .. }) => {
+            println!("{}", MazeCmdDisplay(&maze, UnicodeBoxCharset))
+        }
         MazeAction::Show(ShowArgs { gui: true, .. }) => {
             GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH).show()?
         }
@@ -34,9 +38,9 @@ fn main() -> Result<(), AnyError> {
         }) if ascii || unicode => {
             let mut file = File::create(path)?;
             let display: &dyn Display = if ascii {
-                &AsciiMazeDisplay(&maze)
+                &MazeCmdDisplay(&maze, AsciiBoxCharset)
             } else {
-                &UnicodeDisplay(&maze)
+                &MazeCmdDisplay(&maze, UnicodeBoxCharset)
             };
             file.write_all(display.to_string().as_bytes())?;
             file.flush()?;
@@ -66,6 +70,7 @@ fn main() -> Result<(), AnyError> {
 #[derive(Debug, Parser)]
 #[command(name = "MazeDemo", version)]
 #[command(about = "Demo of maze generation and display(on command line).", long_about = None)]
+#[command(flatten_help = true)]
 struct MazeInputArgs {
     /// Generation algorithm
     #[command(flatten)]
@@ -139,7 +144,7 @@ struct SaveArgs {
     #[arg(long, group = "picture format")]
     pic_format: Option<SavePictureFormat>,
     /// Path to save
-    #[arg(short, long)]
+    #[arg(long = "save-path")]
     path: PathBuf,
     /// Maze shape
     #[command(subcommand)]
@@ -171,7 +176,7 @@ struct MazeMaskInfo {
     #[arg(long, group = "mask category", requires = "mask info")]
     image: bool,
     /// Mask file path
-    #[arg(long, group = "mask info")]
+    #[arg(long = "mask-path", group = "mask info")]
     path: Option<PathBuf>,
 }
 
