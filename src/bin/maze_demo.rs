@@ -5,12 +5,15 @@ use clap::{Args, Parser, Subcommand};
 use thiserror::Error;
 use try_mazes::{
     gene::{
-        AldousBroderMazeGenerator, BTreeMazeGenerator, DiagonalDirection, HuntAndKillMazeGenerator,
-        MazeGenerator, RecursiveBacktrackerMazeGenerator, SideWinderMazeGenerator,
+        AldousBroderMazeGenerator, HuntAndKillMazeGenerator, RecursiveBacktrackerMazeGenerator,
         WilsonMazeGenerator,
+        rect::{BTreeMazeGenerator, DiagonalDirection, RectMazeGenerator, SideWinderMazeGenerator},
     },
-    maze::Mask,
-    show::{AsciiBoxCharset, GUIMazeShow, MazeCmdDisplay, SavePictureFormat, UnicodeBoxCharset},
+    maze::rect::{RectGrid, RectMask},
+    show::{
+        MazePicture, SavePictureFormat,
+        rect::{AsciiBoxCharset, RectMazeCmdDisplay, RectMazePainter, UnicodeBoxCharset},
+    },
 };
 
 fn main() -> Result<(), AnyError> {
@@ -18,18 +21,19 @@ fn main() -> Result<(), AnyError> {
     const DEF_CELL_WIDTH: usize = 50;
 
     let maze_input = MazeInputArgs::parse();
+    let grid = make_grid(&maze_input)?;
     let generator = make_generator(&maze_input)?;
-    let maze = generator.generate();
+    let maze = generator.generate(grid);
+    let painter = RectMazePainter::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH);
+    let picture = MazePicture::new(&painter);
     match maze_input.action {
         MazeAction::Show(ShowArgs { ascii: true, .. }) => {
-            println!("{}", MazeCmdDisplay(&maze, AsciiBoxCharset))
+            println!("{}", RectMazeCmdDisplay(&maze, AsciiBoxCharset))
         }
         MazeAction::Show(ShowArgs { unicode: true, .. }) => {
-            println!("{}", MazeCmdDisplay(&maze, UnicodeBoxCharset))
+            println!("{}", RectMazeCmdDisplay(&maze, UnicodeBoxCharset))
         }
-        MazeAction::Show(ShowArgs { gui: true, .. }) => {
-            GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH).show()?
-        }
+        MazeAction::Show(ShowArgs { gui: true, .. }) => picture.show()?,
         MazeAction::Save(SaveArgs {
             ascii,
             unicode,
@@ -38,9 +42,9 @@ fn main() -> Result<(), AnyError> {
         }) if ascii || unicode => {
             let mut file = File::create(path)?;
             let display: &dyn Display = if ascii {
-                &MazeCmdDisplay(&maze, AsciiBoxCharset)
+                &RectMazeCmdDisplay(&maze, AsciiBoxCharset)
             } else {
-                &MazeCmdDisplay(&maze, UnicodeBoxCharset)
+                &RectMazeCmdDisplay(&maze, UnicodeBoxCharset)
             };
             file.write_all(display.to_string().as_bytes())?;
             file.flush()?;
@@ -50,15 +54,7 @@ fn main() -> Result<(), AnyError> {
             pic_format: Some(format),
             path,
             ..
-        }) => {
-            let mut file = File::create(path)?;
-            file.write_all(
-                GUIMazeShow::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH)
-                    .image_data(format)?
-                    .as_bytes(),
-            )?;
-            file.flush()?;
-        }
+        }) => picture.save(path, format)?,
         _ => unreachable!(
             "Given unknown action or missing arguments of action, should be checked by clap."
         ),
@@ -186,90 +182,81 @@ enum Error {
     NotSupportMask(String),
 }
 
-fn make_generator(input: &MazeInputArgs) -> Result<Box<dyn MazeGenerator>, AnyError> {
+fn make_grid(input: &MazeInputArgs) -> Result<RectGrid, AnyError> {
     match &input.action {
         MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
             match shape {
-                MazeShape::Size(MazeSize { width, height }) => {
-                    let width = *width;
-                    let height = *height;
-                    Ok(match input.algorithm {
-                        MazeGenAlgorithm {
-                            btree: true,
-                            con_dir: Some(dir),
-                            ..
-                        } => Box::new(BTreeMazeGenerator::new(width, height, dir)),
-                        MazeGenAlgorithm {
-                            sidewinder: true,
-                            con_dir: Some(dir),
-                            ..
-                        } => Box::new(SideWinderMazeGenerator::new(width, height, dir)),
-                        MazeGenAlgorithm {
-                            aldous_broder: true,
-                            ..
-                        } => Box::new(AldousBroderMazeGenerator::new(width, height)),
-                        MazeGenAlgorithm {
-                            hunt_and_kill: true,
-                            ..
-                        } => Box::new(HuntAndKillMazeGenerator::new(width, height)),
-                        MazeGenAlgorithm {
-                            recursive_backtracker: true,
-                            ..
-                        } => Box::new(RecursiveBacktrackerMazeGenerator::new(width, height)),
-                        MazeGenAlgorithm { wilson: true, .. } => {
-                            Box::new(WilsonMazeGenerator::new(width, height))
+                MazeShape::Size(MazeSize { width, height }) => Ok(RectGrid::new(*width, *height)),
+                MazeShape::Mask(MazeMaskInfo {
+                    text: true,
+                    path: Some(mask_path),
+                    ..
+                }) => Ok(RectGrid::with_mask(&RectMask::try_from_text_file(
+                    mask_path,
+                )?)),
+                MazeShape::Mask(MazeMaskInfo {
+                    image: true,
+                    path: Some(mask_path),
+                    ..
+                }) => Ok(RectGrid::with_mask(&RectMask::try_from_image_file(
+                    mask_path,
+                )?)),
+                other_shape => unreachable!(
+                    "Given invalid shape information({:?}), should be refused by clap.",
+                    other_shape
+                ),
+            }
+        }
+    }
+}
+
+fn make_generator(input: &MazeInputArgs) -> Result<Box<dyn RectMazeGenerator>, AnyError> {
+    match input.algorithm {
+        MazeGenAlgorithm {
+            aldous_broder: true,
+            ..
+        } => Ok(Box::new(AldousBroderMazeGenerator)),
+        MazeGenAlgorithm { wilson: true, .. } => Ok(Box::new(WilsonMazeGenerator)),
+        MazeGenAlgorithm {
+            hunt_and_kill: true,
+            ..
+        } => Ok(Box::new(HuntAndKillMazeGenerator)),
+        MazeGenAlgorithm {
+            recursive_backtracker: true,
+            ..
+        } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
+        MazeGenAlgorithm {
+            btree: true,
+            con_dir: Some(diag_dir),
+            ..
+        }
+        | MazeGenAlgorithm {
+            sidewinder: true,
+            con_dir: Some(diag_dir),
+            ..
+        } => match &input.action {
+            MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
+                match shape {
+                    MazeShape::Size(_) => {
+                        if input.algorithm.btree {
+                            Ok(Box::new(BTreeMazeGenerator::new(diag_dir)))
+                        } else {
+                            Ok(Box::new(SideWinderMazeGenerator::new(diag_dir)))
                         }
-                        _ => unreachable!(
-                            "Given unknown algorithm or missing arguments of algorithm, should be checked by clap."
-                        ),
-                    })
-                }
-                MazeShape::Mask(mask_info) => {
-                    let mask = match mask_info {
-                        MazeMaskInfo {
-                            text: true,
-                            path: Some(mask_path),
-                            ..
-                        } => Mask::try_from_text_file(mask_path)?,
-                        MazeMaskInfo {
-                            image: true,
-                            path: Some(mask_path),
-                            ..
-                        } => Mask::try_from_image_file(mask_path)?,
-                        other_info => unreachable!(
-                            "Given invalid mask information({:?}), should be refused by clap.",
-                            other_info
-                        ),
-                    };
-                    match input.algorithm {
-                        MazeGenAlgorithm { btree: true, .. } => {
+                    }
+                    MazeShape::Mask(_) => {
+                        if input.algorithm.btree {
                             Err(Error::NotSupportMask("BTree".to_string()).into())
+                        } else {
+                            Err(Error::NotSupportMask("Sidewinder".to_string()).into())
                         }
-                        MazeGenAlgorithm {
-                            sidewinder: true, ..
-                        } => Err(Error::NotSupportMask("Sidewinder".to_string()).into()),
-                        MazeGenAlgorithm {
-                            aldous_broder: true,
-                            ..
-                        } => Ok(Box::new(AldousBroderMazeGenerator::with_mask(mask))),
-                        MazeGenAlgorithm {
-                            hunt_and_kill: true,
-                            ..
-                        } => Ok(Box::new(HuntAndKillMazeGenerator::with_mask(mask))),
-                        MazeGenAlgorithm {
-                            recursive_backtracker: true,
-                            ..
-                        } => Ok(Box::new(RecursiveBacktrackerMazeGenerator::with_mask(mask))),
-                        MazeGenAlgorithm { wilson: true, .. } => {
-                            Ok(Box::new(WilsonMazeGenerator::with_mask(mask)))
-                        }
-                        other_algorithm => unreachable!(
-                            "Given unknown algorithm or missing arguments of algorithm({:?}), should be refused by clap.",
-                            other_algorithm
-                        ),
                     }
                 }
             }
-        }
+        },
+        other_algorithm => unreachable!(
+            "Given unknown algorithm or missing arguments of algorithm({:?}), should be refused by clap.",
+            other_algorithm
+        ),
     }
 }
