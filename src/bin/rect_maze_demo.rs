@@ -16,16 +16,14 @@ use try_mazes::{
     },
 };
 
-fn main() -> Result<(), AnyError> {
-    const DEF_WALL_THICKNESS: usize = 5;
-    const DEF_CELL_WIDTH: usize = 50;
+const DEF_WALL_THICKNESS: usize = 5;
+const DEF_CELL_WIDTH: usize = 50;
 
+fn main() -> Result<(), AnyError> {
     let maze_input = RectMazeInputArgs::parse();
     let grid = make_grid(&maze_input)?;
     let generator = make_generator(&maze_input)?;
     let maze = generator.generate(grid);
-    let painter = RectMazePainter::new(&maze, DEF_WALL_THICKNESS, DEF_CELL_WIDTH);
-    let picture = MazePicture::new(&painter);
     match maze_input.action {
         MazeAction::Show(ShowArgs { ascii: true, .. }) => {
             println!("{}", RectMazeCmdDisplay(&maze, AsciiBoxCharset))
@@ -33,7 +31,11 @@ fn main() -> Result<(), AnyError> {
         MazeAction::Show(ShowArgs { unicode: true, .. }) => {
             println!("{}", RectMazeCmdDisplay(&maze, UnicodeBoxCharset))
         }
-        MazeAction::Show(ShowArgs { gui: true, .. }) => picture.show()?,
+        MazeAction::Show(ShowArgs { gui: true, pic_settings, .. }) => {
+            let painter = RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
+            let picture = MazePicture::new(&painter);
+            picture.show()?
+        },
         MazeAction::Save(SaveArgs {
             ascii,
             unicode,
@@ -52,9 +54,14 @@ fn main() -> Result<(), AnyError> {
         MazeAction::Save(SaveArgs {
             picture: true,
             pic_format: Some(format),
+            pic_settings,
             path,
             ..
-        }) => picture.save(path, format)?,
+        }) => {
+            let painter = RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
+            let picture = MazePicture::new(&painter);
+            picture.save(path, format)?
+        },
         _ => unreachable!(
             "Given unknown action or missing arguments of action, should be checked by clap."
         ),
@@ -71,34 +78,35 @@ struct RectMazeInputArgs {
     /// Generation algorithm
     #[command(flatten)]
     algorithm: RectMazeGenAlgorithm,
+    /// Candidate directions to connect
+    #[arg(short, long, group = "connect direction")]
+    con_dir: Option<DiagonalDirection>,
     /// What to do with generated maze
     #[command(subcommand)]
     action: MazeAction,
 }
 
 #[derive(Debug, Clone, Copy, Args)]
+#[group(required = true, multiple = false)]
 struct RectMazeGenAlgorithm {
     /// Using binary tree algorithm
-    #[arg(long, group = "algorithm", requires = "connect direction")]
+    #[arg(long, requires = "connect direction")]
     btree: bool,
     /// Using sidewinder algorithm
-    #[arg(long, group = "algorithm", requires = "connect direction")]
+    #[arg(long, requires = "connect direction")]
     sidewinder: bool,
     /// Using Aldous-Broder algorithm
-    #[arg(long, group = "algorithm")]
+    #[arg(long)]
     aldous_broder: bool,
     /// Using Wilson's algorithm
-    #[arg(long, group = "algorithm")]
+    #[arg(long)]
     wilson: bool,
     /// Using Hunt-and-Kill algorithm
-    #[arg(long, group = "algorithm")]
+    #[arg(long)]
     hunt_and_kill: bool,
     /// Using recursive backtracker algorithm
-    #[arg(long, group = "algorithm")]
+    #[arg(long)]
     recursive_backtracker: bool,
-    /// Candidate directions to connect
-    #[arg(short, long, group = "connect direction")]
-    con_dir: Option<DiagonalDirection>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -120,6 +128,9 @@ struct ShowArgs {
     /// Using GUI to display maze in graphics
     #[arg(long, group = "save category")]
     gui: bool,
+    /// Settings to paint maze picture
+    #[command(flatten)]
+    pic_settings: PictureSettings,
     /// Maze shape
     #[command(subcommand)]
     shape: MazeShape,
@@ -142,9 +153,22 @@ struct SaveArgs {
     /// Path to save
     #[arg(long = "save-path")]
     path: PathBuf,
+    /// Settings to paint maze picture
+    #[command(flatten)]
+    pic_settings: PictureSettings,
     /// Maze shape
     #[command(subcommand)]
     shape: MazeShape,
+}
+
+#[derive(Debug, Clone, Args)]
+struct PictureSettings {
+    /// Width of each cell empty space
+    #[arg(long, default_value_t = DEF_CELL_WIDTH)]
+    cell_width: usize,
+    /// Thickness of maze wall(the stroke)
+    #[arg(long, default_value_t = DEF_WALL_THICKNESS)]
+    wall_thickness: usize,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -227,21 +251,19 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
         } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
         RectMazeGenAlgorithm {
             btree: true,
-            con_dir: Some(diag_dir),
             ..
         }
         | RectMazeGenAlgorithm {
             sidewinder: true,
-            con_dir: Some(diag_dir),
             ..
         } => match &input.action {
             MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
                 match shape {
                     MazeShape::Size(_) => {
                         if input.algorithm.btree {
-                            Ok(Box::new(BTreeMazeGenerator::new(diag_dir)))
+                            Ok(Box::new(BTreeMazeGenerator::new(input.con_dir.unwrap())))
                         } else {
-                            Ok(Box::new(SideWinderMazeGenerator::new(diag_dir)))
+                            Ok(Box::new(SideWinderMazeGenerator::new(input.con_dir.unwrap())))
                         }
                     }
                     MazeShape::Mask(_) => {
