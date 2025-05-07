@@ -67,6 +67,21 @@ pub struct RectPosition {
     pub col: usize,
 }
 
+impl From<RectPosition> for Position2d {
+    fn from(value: RectPosition) -> Self {
+        Self(value.row, value.col)
+    }
+}
+
+impl From<Position2d> for RectPosition {
+    fn from(value: Position2d) -> Self {
+        Self {
+            row: value.0,
+            col: value.1,
+        }
+    }
+}
+
 impl RectPosition {
     pub fn new(row: usize, col: usize) -> Self {
         Self { row, col }
@@ -92,15 +107,6 @@ impl RectPosition {
     pub fn flat_ind(&self, row_width: usize) -> usize {
         debug_assert!(self.col < row_width);
         self.row * row_width + self.col
-    }
-}
-
-impl From<Position2d> for RectPosition {
-    fn from(value: Position2d) -> Self {
-        Self {
-            row: value.0,
-            col: value.1,
-        }
     }
 }
 

@@ -1,17 +1,10 @@
 use std::collections::HashSet;
 
-use rect::RectPosition;
-
+pub mod circ;
 pub mod rect;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position2d(pub usize, pub usize);
-
-impl From<RectPosition> for Position2d {
-    fn from(value: RectPosition) -> Self {
-        Self(value.row, value.col)
-    }
-}
 
 pub trait Grid2d {
     fn cells_n(&self) -> usize;

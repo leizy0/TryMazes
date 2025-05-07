@@ -20,7 +20,7 @@ fn main() -> Result<(), AnyError> {
     const DEF_WALL_THICKNESS: usize = 5;
     const DEF_CELL_WIDTH: usize = 50;
 
-    let maze_input = MazeInputArgs::parse();
+    let maze_input = RectMazeInputArgs::parse();
     let grid = make_grid(&maze_input)?;
     let generator = make_generator(&maze_input)?;
     let maze = generator.generate(grid);
@@ -67,17 +67,17 @@ fn main() -> Result<(), AnyError> {
 #[command(name = "MazeDemo", version)]
 #[command(about = "Demo of maze generation and display(on command line).", long_about = None)]
 #[command(flatten_help = true)]
-struct MazeInputArgs {
+struct RectMazeInputArgs {
     /// Generation algorithm
     #[command(flatten)]
-    algorithm: MazeGenAlgorithm,
+    algorithm: RectMazeGenAlgorithm,
     /// What to do with generated maze
     #[command(subcommand)]
     action: MazeAction,
 }
 
 #[derive(Debug, Clone, Copy, Args)]
-struct MazeGenAlgorithm {
+struct RectMazeGenAlgorithm {
     /// Using binary tree algorithm
     #[arg(long, group = "algorithm", requires = "connect direction")]
     btree: bool,
@@ -182,7 +182,7 @@ enum Error {
     NotSupportMask(String),
 }
 
-fn make_grid(input: &MazeInputArgs) -> Result<RectGrid, AnyError> {
+fn make_grid(input: &RectMazeInputArgs) -> Result<RectGrid, AnyError> {
     match &input.action {
         MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
             match shape {
@@ -210,27 +210,27 @@ fn make_grid(input: &MazeInputArgs) -> Result<RectGrid, AnyError> {
     }
 }
 
-fn make_generator(input: &MazeInputArgs) -> Result<Box<dyn RectMazeGenerator>, AnyError> {
+fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator>, AnyError> {
     match input.algorithm {
-        MazeGenAlgorithm {
+        RectMazeGenAlgorithm {
             aldous_broder: true,
             ..
         } => Ok(Box::new(AldousBroderMazeGenerator)),
-        MazeGenAlgorithm { wilson: true, .. } => Ok(Box::new(WilsonMazeGenerator)),
-        MazeGenAlgorithm {
+        RectMazeGenAlgorithm { wilson: true, .. } => Ok(Box::new(WilsonMazeGenerator)),
+        RectMazeGenAlgorithm {
             hunt_and_kill: true,
             ..
         } => Ok(Box::new(HuntAndKillMazeGenerator)),
-        MazeGenAlgorithm {
+        RectMazeGenAlgorithm {
             recursive_backtracker: true,
             ..
         } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
-        MazeGenAlgorithm {
+        RectMazeGenAlgorithm {
             btree: true,
             con_dir: Some(diag_dir),
             ..
         }
-        | MazeGenAlgorithm {
+        | RectMazeGenAlgorithm {
             sidewinder: true,
             con_dir: Some(diag_dir),
             ..

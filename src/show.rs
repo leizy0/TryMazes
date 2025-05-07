@@ -1,11 +1,12 @@
 use std::{fs::File, io::Write, path::Path};
 
-use anyhow::{Error as AnyError, Result};
+use anyhow::Error as AnyError;
 use clap::ValueEnum;
 use minifb::{Key, ScaleMode, Window, WindowOptions};
 use skia_safe::{ColorSpace, EncodedImageFormat, ImageInfo, Surface, image::CachingHint};
 use thiserror::Error;
 
+pub mod circ;
 pub mod rect;
 
 #[derive(Debug, Clone, Error)]
@@ -84,7 +85,7 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
         Ok(())
     }
 
-    fn show_pixels(pixels: &[u32], width: usize, height: usize) -> Result<()> {
+    fn show_pixels(pixels: &[u32], width: usize, height: usize) -> Result<(), AnyError> {
         let (wnd_width, wnd_height) = if width > height {
             (800, 600)
         } else {
