@@ -60,13 +60,13 @@ impl RectMazeGenerator for BTreeMazeGenerator {
 
                 if at_horz_border {
                     if !at_vert_border {
-                        grid.connect_along(&pos, vert_dir);
+                        grid.connect_to(&pos, vert_dir);
                     }
                 } else if at_vert_border {
-                    grid.connect_along(&pos, horz_dir);
+                    grid.connect_to(&pos, horz_dir);
                 } else {
                     let rand_dir = connect_dirs[rng.random_range(0..connect_dirs.len())];
-                    grid.connect_along(&pos, rand_dir);
+                    grid.connect_to(&pos, rand_dir);
                 }
             }
         }
@@ -111,14 +111,14 @@ impl RectMazeGenerator for SideWinderMazeGenerator {
                     } else {
                         rng.random_range(run_start_ind..=c_ind)
                     };
-                    grid.connect_along(&RectPosition::new(r_ind, out_ind), vert_dir);
+                    grid.connect_to(&RectPosition::new(r_ind, out_ind), vert_dir);
                     run_start_ind = if is_horz_reverse {
                         c_ind.saturating_sub(1)
                     } else {
                         c_ind + 1
                     };
                 } else if !at_horz_border {
-                    grid.connect_along(&pos, horz_dir);
+                    grid.connect_to(&pos, horz_dir);
                 }
             }
         }

@@ -31,11 +31,16 @@ fn main() -> Result<(), AnyError> {
         MazeAction::Show(ShowArgs { unicode: true, .. }) => {
             println!("{}", RectMazeCmdDisplay(&maze, UnicodeBoxCharset))
         }
-        MazeAction::Show(ShowArgs { gui: true, pic_settings, .. }) => {
-            let painter = RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
+        MazeAction::Show(ShowArgs {
+            gui: true,
+            pic_settings,
+            ..
+        }) => {
+            let painter =
+                RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
             let picture = MazePicture::new(&painter);
             picture.show()?
-        },
+        }
         MazeAction::Save(SaveArgs {
             ascii,
             unicode,
@@ -58,10 +63,11 @@ fn main() -> Result<(), AnyError> {
             path,
             ..
         }) => {
-            let painter = RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
+            let painter =
+                RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
             let picture = MazePicture::new(&painter);
             picture.save(path, format)?
-        },
+        }
         _ => unreachable!(
             "Given unknown action or missing arguments of action, should be checked by clap."
         ),
@@ -249,13 +255,9 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
             recursive_backtracker: true,
             ..
         } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
-        RectMazeGenAlgorithm {
-            btree: true,
-            ..
-        }
+        RectMazeGenAlgorithm { btree: true, .. }
         | RectMazeGenAlgorithm {
-            sidewinder: true,
-            ..
+            sidewinder: true, ..
         } => match &input.action {
             MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
                 match shape {
@@ -263,7 +265,9 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
                         if input.algorithm.btree {
                             Ok(Box::new(BTreeMazeGenerator::new(input.con_dir.unwrap())))
                         } else {
-                            Ok(Box::new(SideWinderMazeGenerator::new(input.con_dir.unwrap())))
+                            Ok(Box::new(SideWinderMazeGenerator::new(
+                                input.con_dir.unwrap(),
+                            )))
                         }
                     }
                     MazeShape::Mask(_) => {

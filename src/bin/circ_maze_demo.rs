@@ -1,14 +1,13 @@
-use std::path::PathBuf;
-
 use anyhow::Error as AnyError;
-use clap::{Args, Parser, Subcommand};
+use clap::Parser;
 use try_mazes::{
+    cli::{GeneralMaze2dAlgorithm, MazeAction},
     gene::{
         AldousBroderMazeGenerator, HuntAndKillMazeGenerator, RecursiveBacktrackerMazeGenerator,
         WilsonMazeGenerator, circ::CircMazeGenerator,
     },
     maze::circ::CircGrid,
-    show::{MazePicture, SavePictureFormat, circ::CircMazePainter},
+    show::{MazePicture, circ::CircMazePainter},
 };
 
 const DEF_WALL_THICKNESS: usize = 5;
@@ -17,16 +16,16 @@ fn main() -> Result<(), AnyError> {
     let maze_input = CircMazeInputArgs::parse();
     let grid = CircGrid::new(maze_input.rings_n);
     let generator: &dyn CircMazeGenerator = match maze_input.algorithm {
-        CircMazeAlgorithm {
+        GeneralMaze2dAlgorithm {
             aldous_broder: true,
             ..
         } => &AldousBroderMazeGenerator,
-        CircMazeAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
-        CircMazeAlgorithm {
+        GeneralMaze2dAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
+        GeneralMaze2dAlgorithm {
             hunt_and_kill: true,
             ..
         } => &HuntAndKillMazeGenerator,
-        CircMazeAlgorithm {
+        GeneralMaze2dAlgorithm {
             recursive_backtracker: true,
             ..
         } => &RecursiveBacktrackerMazeGenerator,
@@ -58,7 +57,7 @@ struct CircMazeInputArgs {
     rings_n: usize,
     /// Algorithm used by generator
     #[command(flatten)]
-    algorithm: CircMazeAlgorithm,
+    algorithm: GeneralMaze2dAlgorithm,
     /// Width of space between two adjacent rings along the radial direction
     #[arg(short = 'i', long, default_value_t = DEF_RING_INTERVAL_WIDTH)]
     ring_interval_width: usize,
@@ -68,32 +67,4 @@ struct CircMazeInputArgs {
     /// Action to do with generated maze
     #[command(subcommand)]
     action: MazeAction,
-}
-
-#[derive(Debug, Clone, Args)]
-#[group(required = true, multiple = false)]
-struct CircMazeAlgorithm {
-    /// Using Aldous-Broder algorithm
-    #[arg(long)]
-    aldous_broder: bool,
-    /// Using Wilson's algorithm
-    #[arg(long)]
-    wilson: bool,
-    /// Using Hunt-and-Kill algorithm
-    #[arg(long)]
-    hunt_and_kill: bool,
-    /// Using recursive backtracker algorithm
-    #[arg(long)]
-    recursive_backtracker: bool,
-}
-
-#[derive(Debug, Clone, Subcommand)]
-enum MazeAction {
-    Show,
-    Save {
-        #[arg(short, long)]
-        path: PathBuf,
-        #[arg(short, long)]
-        format: SavePictureFormat,
-    },
 }

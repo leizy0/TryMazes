@@ -56,8 +56,8 @@ impl CircPosition {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct CircCell {
-    pub is_connect_inward: bool,
-    pub is_connect_clockwise: bool,
+    pub is_connected_inward: bool,
+    pub is_connected_clockwise: bool,
 }
 
 pub enum CircCellPosIter {
@@ -281,12 +281,12 @@ impl Grid2d for CircGrid {
             return false;
         };
         match dir {
-            CircDirection::Inward => self.cell_mut(&from).unwrap().is_connect_inward = true,
-            CircDirection::Clockwise => self.cell_mut(&from).unwrap().is_connect_clockwise = true,
+            CircDirection::Inward => self.cell_mut(&from).unwrap().is_connected_inward = true,
+            CircDirection::Clockwise => self.cell_mut(&from).unwrap().is_connected_clockwise = true,
             CircDirection::Counterclockwise => {
-                self.cell_mut(&to).unwrap().is_connect_clockwise = true
+                self.cell_mut(&to).unwrap().is_connected_clockwise = true
             }
-            CircDirection::Outward => self.cell_mut(&to).unwrap().is_connect_inward = true,
+            CircDirection::Outward => self.cell_mut(&to).unwrap().is_connected_inward = true,
         }
 
         true
@@ -311,16 +311,16 @@ impl CircMaze {
         self.grid.ring_cells_n(ring)
     }
 
-    pub fn is_connect_inward(&self, pos: &CircPosition) -> bool {
+    pub fn is_connected_inward(&self, pos: &CircPosition) -> bool {
         self.grid
             .cell(pos)
-            .is_some_and(|cell| cell.is_connect_inward)
+            .is_some_and(|cell| cell.is_connected_inward)
     }
 
-    pub fn is_connect_clockwise(&self, pos: &CircPosition) -> bool {
+    pub fn is_connected_clockwise(&self, pos: &CircPosition) -> bool {
         self.grid
             .cell(pos)
-            .is_some_and(|cell| cell.is_connect_clockwise)
+            .is_some_and(|cell| cell.is_connected_clockwise)
     }
 }
 

@@ -45,7 +45,7 @@ impl MazePaint for CircMazePainter<'_> {
             let mut cur_angle = 0f32;
             for cell in 0..ring_cells_n {
                 let pos = CircPosition::new(ring, cell);
-                if !maze.is_connect_inward(&pos) {
+                if !maze.is_connected_inward(&pos) {
                     path.add_arc(
                         Rect::from_ltrb(-cur_radius, -cur_radius, cur_radius, cur_radius),
                         cur_angle,
@@ -55,7 +55,7 @@ impl MazePaint for CircMazePainter<'_> {
 
                 // Rotate to angle of the clockwise wall(also the start angle of the next cell).
                 cur_angle += cell_angle_interval;
-                if !maze.is_connect_clockwise(&pos) {
+                if !maze.is_connected_clockwise(&pos) {
                     let clockwise_wall_inward_x = cur_radius * cur_angle.to_radians().cos();
                     let clockwise_wall_inward_y = cur_radius * cur_angle.to_radians().sin();
                     path.move_to((clockwise_wall_inward_x, clockwise_wall_inward_y));

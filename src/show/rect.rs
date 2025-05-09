@@ -141,14 +141,14 @@ impl<T: CmdBoxCharset> Display for RectMazeCmdDisplay<'_, T> {
                 let pos = RectPosition::new(r_ind, c_ind);
                 let is_cell = maze.is_cell(&pos);
                 let has_east_wall = if is_cell {
-                    !maze.is_connect_along(&pos, RectDirection::North)
+                    !maze.is_connected_to(&pos, RectDirection::North)
                 } else {
                     pos.neighbor(RectDirection::North)
                         .is_some_and(|neighbor| maze.is_cell(&neighbor))
                 };
                 let has_north_wall = last_row_has_vert_wall[c_ind];
                 let has_south_wall = if is_cell {
-                    !maze.is_connect_along(&pos, RectDirection::West)
+                    !maze.is_connected_to(&pos, RectDirection::West)
                 } else {
                     pos.neighbor(RectDirection::West)
                         .is_some_and(|neighbor| maze.is_cell(&neighbor))
@@ -254,13 +254,13 @@ impl MazePaint for RectMazePainter<'_> {
                 let pos = RectPosition::new(r_ind, c_ind);
                 let cell_x1 = cell_x0 + cell_interval;
                 let has_north_wall = if self.maze.is_cell(&pos) {
-                    !self.maze.is_connect_along(&pos, RectDirection::North)
+                    !self.maze.is_connected_to(&pos, RectDirection::North)
                 } else {
                     pos.neighbor(RectDirection::North)
                         .is_some_and(|neighbor| self.maze.is_cell(&neighbor))
                 };
                 let has_west_wall = if self.maze.is_cell(&pos) {
-                    !self.maze.is_connect_along(&pos, RectDirection::West)
+                    !self.maze.is_connected_to(&pos, RectDirection::West)
                 } else {
                     pos.neighbor(RectDirection::West)
                         .is_some_and(|neighbor| self.maze.is_cell(&neighbor))

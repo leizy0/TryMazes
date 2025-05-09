@@ -7,6 +7,7 @@ use skia_safe::{ColorSpace, EncodedImageFormat, ImageInfo, Surface, image::Cachi
 use thiserror::Error;
 
 pub mod circ;
+pub mod hexa;
 pub mod rect;
 
 #[derive(Debug, Clone, Error)]

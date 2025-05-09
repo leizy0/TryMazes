@@ -8,6 +8,7 @@ use rand::seq::IteratorRandom;
 use crate::maze::Grid2d;
 
 pub mod circ;
+pub mod hexa;
 pub mod rect;
 
 pub trait Maze2dGenerator {

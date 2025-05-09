@@ -9,12 +9,12 @@ use std::{
 
 use anyhow::Error as AnyError;
 use image::{GenericImageView, ImageReader, Rgba};
-use rand::{Rng, seq::IteratorRandom};
+use rand::Rng;
 use thiserror::Error;
 
 use crate::show::rect::{AsciiBoxCharset, RectMazeCmdDisplay};
 
-use super::{Grid2d, Position2d};
+use super::{GeneralRectGrid, Grid2d, Position2d};
 
 #[derive(Debug, Clone, Error)]
 enum Error {
@@ -249,58 +249,32 @@ struct RectCell {
     is_connected_to_east: bool,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct RectGrid {
-    width: usize,
-    height: usize,
-    cells: Vec<RectCell>,
-    mask: Option<RectMask>,
-}
+#[derive(Debug, Clone)]
+pub struct RectGrid(GeneralRectGrid<RectCell>);
 
 impl Grid2d for RectGrid {
     fn cells_n(&self) -> usize {
-        if let Some(mask) = self.mask.as_ref() {
-            mask.cells_n()
-        } else {
-            self.cells.len()
-        }
+        self.0.cells_n()
     }
 
     fn random_cell_pos(&self) -> Option<Position2d> {
-        let mut rng = rand::rng();
-        if let Some(mask) = self.mask.as_ref() {
-            mask.cell_pos_iter()
-                .choose(&mut rng)
-                .map(|rect_pos| rect_pos.into())
-        } else {
-            Some(
-                RectPosition::new(
-                    rng.random_range(0..self.height),
-                    rng.random_range(0..self.width),
-                )
-                .into(),
-            )
-        }
+        self.0.random_cell_pos()
     }
 
     fn all_cells_pos_set(&self) -> HashSet<Position2d> {
-        (0..self.height)
-            .flat_map(|r| (0..self.width).map(move |c| RectPosition::new(r, c)))
-            .filter(|pos| self.mask.as_ref().is_none_or(|mask| mask.is_cell(pos)))
-            .map(|rect_pos| rect_pos.into())
-            .collect()
+        self.0.all_cells_pos_set()
     }
 
     fn append_neighbors(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
-        let rect_pos = (*pos).into();
-        if self.is_cell(&rect_pos) {
+        let rect_pos: RectPosition = (*pos).into();
+        if self.0.is_cell(pos) {
             neighbors.extend(
                 RectDirection::all_dirs()
                     .iter()
                     .filter_map(|dir| {
                         rect_pos
                             .neighbor(*dir)
-                            .filter(|neighbor| self.is_cell(neighbor))
+                            .filter(|neighbor| self.0.is_cell(&(*neighbor).into()))
                     })
                     .map(Position2d::from),
             );
@@ -308,57 +282,45 @@ impl Grid2d for RectGrid {
     }
 
     fn connect_to(&mut self, from: &Position2d, to: &Position2d) -> bool {
-        let from = (*from).into();
-        let to = (*to).into();
-        self.is_cell(&from)
-            && self.is_cell(&to)
+        let rect_from: RectPosition = (*from).into();
+        let rect_to: RectPosition = (*to).into();
+        self.0.is_cell(from)
+            && self.0.is_cell(to)
             && RectDirection::all_dirs()
                 .iter()
-                .find(|dir| from.neighbor(**dir).is_some_and(|neighbor| neighbor == to))
-                .is_some_and(|connect_dir| self.connect_along(&from, *connect_dir))
+                .find(|dir| {
+                    rect_from
+                        .neighbor(**dir)
+                        .is_some_and(|neighbor| neighbor == rect_to)
+                })
+                .is_some_and(|connect_dir| self.connect_to(&rect_from, *connect_dir))
     }
 }
 
 impl RectGrid {
     pub fn new(width: usize, height: usize) -> Self {
-        Self {
-            width,
-            height,
-            cells: vec![RectCell::default(); width * height],
-            mask: None,
-        }
+        Self(GeneralRectGrid::<RectCell>::new(width, height))
     }
 
     pub fn with_mask(mask: &RectMask) -> Self {
-        Self {
-            mask: Some(mask.clone()),
-            ..Self::new(mask.width, mask.height)
-        }
+        Self(GeneralRectGrid::<RectCell>::with_mask(mask))
     }
 
     pub fn size(&self) -> (usize, usize) {
-        (self.width, self.height)
-    }
-
-    pub fn is_cell(&self, pos: &RectPosition) -> bool {
-        if let Some(mask) = self.mask.as_ref() {
-            mask.is_cell(pos)
-        } else {
-            self.pos_to_ind(pos).is_some()
-        }
+        self.0.size()
     }
 
     pub fn is_at_border(&self, pos: &RectPosition, dir: RectDirection) -> bool {
-        self.cell(pos).is_some() && self.neighbor_pos(pos, dir).is_none()
+        self.0.cell(&(*pos).into()).is_some() && self.neighbor_pos(pos, dir).is_none()
     }
 
-    pub fn is_connect_along(&self, pos: &RectPosition, dir: RectDirection) -> bool {
-        if let Some(cell) = self.cell(pos) {
+    pub fn is_connected_to(&self, pos: &RectPosition, dir: RectDirection) -> bool {
+        if let Some(cell) = self.0.cell(&(*pos).into()) {
             self.neighbor_pos(pos, dir)
                 .is_some_and(|neighbor| match dir {
                     RectDirection::North => cell.is_connected_to_north,
                     RectDirection::East => cell.is_connected_to_east,
-                    other_dir => self.is_connect_along(&neighbor, other_dir.reverse()),
+                    other_dir => self.is_connected_to(&neighbor, other_dir.reverse()),
                 })
         } else {
             false
@@ -366,13 +328,15 @@ impl RectGrid {
     }
 
     pub fn neighbor_pos(&self, pos: &RectPosition, dir: RectDirection) -> Option<RectPosition> {
-        self.cell(pos)
-            .and(pos.neighbor(dir).filter(|neighbor| self.is_cell(neighbor)))
+        self.0.cell(&(*pos).into()).and(
+            pos.neighbor(dir)
+                .filter(|neighbor| self.0.is_cell(&(*neighbor).into())),
+        )
     }
 
-    pub fn connect_along(&mut self, pos: &RectPosition, dir: RectDirection) -> bool {
+    pub fn connect_to(&mut self, pos: &RectPosition, dir: RectDirection) -> bool {
         if let Some(neighbor) = self.neighbor_pos(pos, dir) {
-            if let Some(cell) = self.cell_mut(pos) {
+            if let Some(cell) = self.0.cell_mut(&(*pos).into()) {
                 return match dir {
                     RectDirection::North => {
                         cell.is_connected_to_north = true;
@@ -382,36 +346,12 @@ impl RectGrid {
                         cell.is_connected_to_east = true;
                         true
                     }
-                    other_dir => self.connect_along(&neighbor, other_dir.reverse()),
+                    other_dir => self.connect_to(&neighbor, other_dir.reverse()),
                 };
             }
         }
 
         false
-    }
-
-    fn cell(&self, pos: &RectPosition) -> Option<&RectCell> {
-        if self.mask.as_ref().is_none_or(|mask| mask.is_cell(pos)) {
-            self.pos_to_ind(pos).and_then(|ind| self.cells.get(ind))
-        } else {
-            None
-        }
-    }
-
-    fn cell_mut(&mut self, pos: &RectPosition) -> Option<&mut RectCell> {
-        if self.mask.as_ref().is_none_or(|mask| mask.is_cell(pos)) {
-            self.pos_to_ind(pos).and_then(|ind| self.cells.get_mut(ind))
-        } else {
-            None
-        }
-    }
-
-    fn pos_to_ind(&self, pos: &RectPosition) -> Option<usize> {
-        if pos.row < self.height && pos.col < self.width {
-            Some(pos.flat_ind(self.width))
-        } else {
-            None
-        }
     }
 }
 
@@ -434,10 +374,10 @@ impl RectMaze {
     }
 
     pub fn is_cell(&self, pos: &RectPosition) -> bool {
-        self.0.is_cell(pos)
+        self.0.0.is_cell(&(*pos).into())
     }
 
-    pub fn is_connect_along(&self, pos: &RectPosition, dir: RectDirection) -> bool {
-        self.0.is_connect_along(pos, dir)
+    pub fn is_connected_to(&self, pos: &RectPosition, dir: RectDirection) -> bool {
+        self.0.is_connected_to(pos, dir)
     }
 }
