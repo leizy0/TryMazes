@@ -10,6 +10,7 @@ use crate::maze::Grid2d;
 pub mod circ;
 pub mod hexa;
 pub mod rect;
+pub mod tri;
 
 pub trait Maze2dGenerator {
     fn generate_2d(&self, grid: &mut dyn Grid2d);

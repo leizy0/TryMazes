@@ -4,31 +4,31 @@ use try_mazes::{
     cli::{GeneralMaze2dAlgorithm, GeneralRectMazeShape, MazeAction},
     gene::{
         AldousBroderMazeGenerator, HuntAndKillMazeGenerator, RecursiveBacktrackerMazeGenerator,
-        WilsonMazeGenerator, hexa::HexaMazeGenerator,
+        WilsonMazeGenerator, tri::TriMazeGenerator,
     },
-    maze::{hexa::HexaGrid, rect::RectMask},
-    show::{MazePicture, hexa::HexaMazePainter},
+    maze::{rect::RectMask, tri::TriGrid},
+    show::{MazePicture, tri::TriMazePainter},
 };
 
-const DEF_CELL_WIDTH: u16 = 50;
+const DEF_TRI_CELL_HEIGHT: u16 = 50;
 const DEF_WALL_THICKNESS: u16 = 5;
 
 fn main() -> Result<(), AnyError> {
     let maze_input = HexaMazeInputArgs::parse();
     let grid = match &maze_input.shape {
-        GeneralRectMazeShape::Size { width, height, .. } => HexaGrid::new(*width, *height),
+        GeneralRectMazeShape::Size { width, height, .. } => TriGrid::new(*width, *height),
         GeneralRectMazeShape::Mask {
             text: true, path, ..
-        } => HexaGrid::with_mask(&RectMask::try_from_text_file(path)?),
+        } => TriGrid::with_mask(&RectMask::try_from_text_file(path)?),
         GeneralRectMazeShape::Mask {
             image: true, path, ..
-        } => HexaGrid::with_mask(&RectMask::try_from_image_file(path)?),
+        } => TriGrid::with_mask(&RectMask::try_from_image_file(path)?),
         other_shape => unreachable!(
             "Invalid maze shape({:?}), should be refused by clap.",
             other_shape
         ),
     };
-    let generator: &dyn HexaMazeGenerator = match maze_input.algorithm {
+    let generator: &dyn TriMazeGenerator = match maze_input.algorithm {
         GeneralMaze2dAlgorithm {
             aldous_broder: true,
             ..
@@ -48,7 +48,7 @@ fn main() -> Result<(), AnyError> {
         ),
     };
     let maze = generator.generate(grid);
-    let painter = HexaMazePainter::new(&maze, maze_input.cell_height, maze_input.wall_thickness);
+    let painter = TriMazePainter::new(&maze, maze_input.cell_height, maze_input.wall_thickness);
     let picture = MazePicture::new(&painter);
     match &maze_input.shape {
         GeneralRectMazeShape::Size { action, .. } | GeneralRectMazeShape::Mask { action, .. } => {
@@ -69,7 +69,7 @@ struct HexaMazeInputArgs {
     #[command(flatten)]
     algorithm: GeneralMaze2dAlgorithm,
     /// Height of cell space
-    #[arg(short, long, default_value_t = DEF_CELL_WIDTH)]
+    #[arg(short, long, default_value_t = DEF_TRI_CELL_HEIGHT)]
     cell_height: u16,
     /// Thickness of the maze wall(the stroke)
     #[arg(short, long, default_value_t = DEF_WALL_THICKNESS)]

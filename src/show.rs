@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write, path::Path};
+use std::{cell::RefCell, fs::File, io::Write, path::Path};
 
 use anyhow::Error as AnyError;
 use clap::ValueEnum;
@@ -9,6 +9,7 @@ use thiserror::Error;
 pub mod circ;
 pub mod hexa;
 pub mod rect;
+pub mod tri;
 
 #[derive(Debug, Clone, Error)]
 pub enum Error {
@@ -34,16 +35,19 @@ pub trait MazePaint {
 
 pub struct MazePicture<'a, MP: MazePaint> {
     painter: &'a MP,
+    surface_cache: RefCell<Option<Surface>>,
 }
 
 impl<'a, MP: MazePaint> MazePicture<'a, MP> {
     pub fn new(paint: &'a MP) -> Self {
-        Self { painter: paint }
+        Self {
+            painter: paint,
+            surface_cache: RefCell::new(None),
+        }
     }
 
     pub fn show(&self) -> Result<(), AnyError> {
-        let mut surface = self.painter.paint()?;
-        let image = surface.image_snapshot();
+        let image = self.surface()?.image_snapshot();
         let size = image.image_info().bounds().size();
         let mut pixels = vec![0u32; usize::try_from(size.width * size.height)?];
         let copy_info = ImageInfo::new_n32(size, image.alpha_type(), ColorSpace::new_srgb());
@@ -67,8 +71,7 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P, format: SavePictureFormat) -> Result<(), AnyError> {
-        let mut surface = self.painter.paint()?;
-
+        let mut surface = self.surface()?;
         let image = surface.image_snapshot();
         let mut context = surface.direct_context();
         let format = match format {
@@ -84,6 +87,16 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
         file.flush()?;
 
         Ok(())
+    }
+
+    fn surface(&self) -> Result<Surface, AnyError> {
+        if let Some(surface) = self.surface_cache.borrow().as_ref() {
+            return Ok(surface.clone());
+        }
+
+        let surface = self.painter.paint()?;
+        *self.surface_cache.borrow_mut() = Some(surface.clone());
+        Ok(surface)
     }
 
     fn show_pixels(pixels: &[u32], width: usize, height: usize) -> Result<(), AnyError> {

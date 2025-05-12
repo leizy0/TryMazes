@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use anyhow::Error as AnyError;
 use skia_safe::{Color, Paint, PaintStyle, Path, PathDirection, Rect, Surface, surfaces};
 
@@ -11,15 +9,10 @@ pub struct CircMazePainter<'a> {
     maze: &'a CircMaze,
     ring_interval_width: usize,
     wall_thickness: usize,
-    surface_cache: RefCell<Option<Surface>>,
 }
 
 impl MazePaint for CircMazePainter<'_> {
     fn paint(&self) -> Result<Surface, AnyError> {
-        if let Some(surface) = self.surface_cache.borrow().as_ref() {
-            return Ok(surface.clone());
-        }
-
         let maze = self.maze;
         let rings_n = maze.rings_n();
         let ring_interval = i32::try_from(self.ring_interval_width + self.wall_thickness)?;
@@ -73,7 +66,6 @@ impl MazePaint for CircMazePainter<'_> {
         surface.canvas().draw_path(&path, &paint);
         surface.canvas().restore();
 
-        *self.surface_cache.borrow_mut() = Some(surface.clone());
         Ok(surface)
     }
 }
@@ -84,7 +76,6 @@ impl<'a> CircMazePainter<'a> {
             maze,
             ring_interval_width,
             wall_thickness,
-            surface_cache: RefCell::new(None),
         }
     }
 }

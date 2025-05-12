@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Display};
+use std::fmt::Display;
 
 use skia_safe::{Color, Paint, PaintStyle, Path, Surface, surfaces};
 
@@ -221,15 +221,10 @@ pub struct RectMazePainter<'a> {
     maze: &'a RectMaze,
     wall_thickness: usize,
     cell_width: usize,
-    surface: RefCell<Option<Surface>>,
 }
 
 impl MazePaint for RectMazePainter<'_> {
     fn paint(&self) -> anyhow::Result<Surface, anyhow::Error> {
-        if let Some(cache) = self.surface.borrow().as_ref() {
-            return Ok(cache.clone());
-        }
-
         let (width, height) = self.maze.size();
         let wall_thickness = i32::try_from(self.wall_thickness)?;
         let stroke_offset = wall_thickness / 2;
@@ -304,7 +299,6 @@ impl MazePaint for RectMazePainter<'_> {
         }
         surface.canvas().draw_path(&path, &paint);
 
-        *self.surface.borrow_mut() = Some(surface.clone());
         Ok(surface)
     }
 }
@@ -315,7 +309,6 @@ impl<'a> RectMazePainter<'a> {
             maze,
             wall_thickness,
             cell_width,
-            surface: RefCell::new(None),
         }
     }
 }

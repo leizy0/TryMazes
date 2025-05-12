@@ -6,6 +6,7 @@ use rect::RectMask;
 pub mod circ;
 pub mod hexa;
 pub mod rect;
+pub mod tri;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position2d(pub usize, pub usize);
@@ -18,20 +19,32 @@ pub trait Grid2d {
     fn connect_to(&mut self, from: &Position2d, to: &Position2d) -> bool;
 }
 
+pub trait DefaultInRectGrid {
+    fn default_at(pos: &Position2d) -> Self;
+}
+
+impl<T: Default> DefaultInRectGrid for T {
+    fn default_at(_pos: &Position2d) -> Self {
+        Self::default()
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct GeneralRectGrid<C: Default + Debug + Clone> {
+pub struct GeneralRectGrid<C: DefaultInRectGrid + Debug + Clone> {
     width: usize,
     height: usize,
     cells: Vec<C>,
     mask: Option<RectMask>,
 }
 
-impl<C: Default + Debug + Clone> GeneralRectGrid<C> {
+impl<C: DefaultInRectGrid + Debug + Clone> GeneralRectGrid<C> {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
-            cells: vec![C::default(); width * height],
+            cells: (0..height)
+                .flat_map(|r| (0..width).map(move |c| C::default_at(&Position2d(r, c))))
+                .collect(),
             mask: None,
         }
     }

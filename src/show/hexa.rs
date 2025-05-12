@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use skia_safe::{Color, Paint, Path, Surface, surfaces};
 
 use crate::maze::hexa::{HexaDirection, HexaMaze, HexaPosition};
@@ -11,15 +9,10 @@ pub struct HexaMazePainter<'a> {
     maze: &'a HexaMaze,
     hexa_cell_height: u16,
     wall_thickness: u16,
-    surface_cache: RefCell<Option<Surface>>,
 }
 
 impl MazePaint for HexaMazePainter<'_> {
     fn paint(&self) -> Result<Surface, anyhow::Error> {
-        if let Some(surface) = self.surface_cache.borrow().as_ref() {
-            return Ok(surface.clone());
-        }
-
         let maze = self.maze;
         let (maze_width, maze_height) = maze.size();
         let cell_height = f32::from(self.hexa_cell_height);
@@ -148,7 +141,6 @@ impl MazePaint for HexaMazePainter<'_> {
         surface.canvas().draw_path(&path, &paint);
         surface.canvas().restore();
 
-        *self.surface_cache.borrow_mut() = Some(surface.clone());
         Ok(surface)
     }
 }
@@ -159,7 +151,6 @@ impl<'a> HexaMazePainter<'a> {
             maze,
             hexa_cell_height,
             wall_thickness,
-            surface_cache: RefCell::new(None),
         }
     }
 }
