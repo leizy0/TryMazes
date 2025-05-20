@@ -3,8 +3,8 @@ use clap::Parser;
 use try_mazes::{
     cli::{GeneralMaze2dAlgorithm, MazeAction},
     gene::{
-        AldousBroderMazeGenerator, HuntAndKillMazeGenerator, RecursiveBacktrackerMazeGenerator,
-        WilsonMazeGenerator, circ::CircMazeGenerator,
+        AldousBroderMazeGenerator, HuntAndKillMazeGenerator, KruskalMazeGenerator,
+        RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator, circ::CircMazeGenerator,
     },
     maze::circ::CircGrid,
     show::{MazePicture, circ::CircMazePainter},
@@ -29,6 +29,7 @@ fn main() -> Result<(), AnyError> {
             recursive_backtracker: true,
             ..
         } => &RecursiveBacktrackerMazeGenerator,
+        GeneralMaze2dAlgorithm { kruskal: true, .. } => &KruskalMazeGenerator,
         other_algorithm => unreachable!(
             "Invalid circular maze algorithm({:?}), should be refused by clap.",
             other_algorithm

@@ -5,7 +5,7 @@ use std::{
 
 use rand::seq::IteratorRandom;
 
-use crate::maze::Grid2d;
+use crate::maze::{Grid2d, Position2d};
 
 pub mod circ;
 pub mod hexa;
@@ -192,6 +192,115 @@ impl Maze2dGenerator for RecursiveBacktrackerMazeGenerator {
             };
             grid.connect_to(&cur_pos, candidate);
             visited_stack.push(*candidate);
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct MazeEdge {
+    pub low: Position2d,
+    pub high: Position2d,
+}
+
+impl MazeEdge {
+    pub fn new(left: &Position2d, right: &Position2d) -> Self {
+        Self {
+            low: *left.min(right),
+            high: *left.max(right),
+        }
+    }
+}
+
+struct Union {
+    ele_inds: HashMap<Position2d, usize>,
+    set_ids: Vec<usize>,
+    sets_n: usize,
+}
+
+impl<'a> FromIterator<&'a Position2d> for Union {
+    fn from_iter<T: IntoIterator<Item = &'a Position2d>>(iter: T) -> Self {
+        let mut ele_inds = HashMap::new();
+        for ele in iter.into_iter().cloned() {
+            if !ele_inds.contains_key(&ele) {
+                ele_inds.insert(ele, ele_inds.len());
+            }
+        }
+        let set_ids: Vec<_> = (0..ele_inds.len()).collect();
+        Self {
+            ele_inds,
+            sets_n: set_ids.len(),
+            set_ids,
+        }
+    }
+}
+
+impl Union {
+    pub fn sets_n(&self) -> usize {
+        self.sets_n
+    }
+
+    pub fn merge(&mut self, ele0: &Position2d, ele1: &Position2d) -> bool {
+        let Some(set_id0) = self.ele_set_id(ele0) else {
+            return false;
+        };
+        let Some(set_id1) = self.ele_set_id(ele1) else {
+            return false;
+        };
+        if set_id0 == set_id1 {
+            return false;
+        }
+
+        let from_id = set_id0.min(set_id1);
+        let to_id = set_id0.max(set_id1);
+        self.set_ids[from_id] = to_id;
+        self.sets_n -= 1;
+        true
+    }
+
+    fn ele_set_id(&mut self, ele: &Position2d) -> Option<usize> {
+        self.ele_inds.get(ele).copied().map(|ind| self.set_id(ind))
+    }
+
+    fn set_id(&mut self, ind: usize) -> usize {
+        let parent_ind = self.set_ids[ind];
+        if parent_ind == ind {
+            return ind;
+        }
+
+        let root_ind = self.set_id(parent_ind);
+        self.set_ids[ind] = root_ind;
+        root_ind
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct KruskalMazeGenerator;
+
+impl Maze2dGenerator for KruskalMazeGenerator {
+    fn generate_2d(&self, grid: &mut dyn Grid2d) {
+        let all_pos = grid.all_cells_pos_set();
+        let mut neighbors = Vec::new();
+        let mut edges = HashSet::new();
+        for pos in all_pos.iter() {
+            neighbors.clear();
+            grid.append_neighbors(pos, &mut neighbors);
+            edges.extend(
+                neighbors
+                    .iter()
+                    .map(|neighbor| MazeEdge::new(pos, neighbor)),
+            );
+        }
+        let mut rng = rand::rng();
+        let mut union = Union::from_iter(all_pos.iter());
+        while union.sets_n() > 1 {
+            let Some(edge) = edges.iter().choose(&mut rng).cloned() else {
+                break;
+            };
+            if union.merge(&edge.low, &edge.high) {
+                grid.connect_to(&edge.low, &edge.high);
+            }
+
+            edges.remove(&edge);
         }
     }
 }

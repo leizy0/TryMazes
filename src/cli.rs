@@ -19,6 +19,9 @@ pub struct GeneralMaze2dAlgorithm {
     /// Using recursive backtracker algorithm
     #[arg(long)]
     pub recursive_backtracker: bool,
+    /// Using Kruskal's algorithm
+    #[arg(long)]
+    pub kruskal: bool,
 }
 
 #[derive(Debug, Clone, Subcommand)]
