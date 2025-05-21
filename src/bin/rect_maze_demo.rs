@@ -6,7 +6,7 @@ use thiserror::Error;
 use try_mazes::{
     gene::{
         AldousBroderMazeGenerator, HuntAndKillMazeGenerator, KruskalMazeGenerator,
-        RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
+        PrimMazeGenerator, RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
         rect::{BTreeMazeGenerator, DiagonalDirection, RectMazeGenerator, SideWinderMazeGenerator},
     },
     maze::rect::{RectGrid, RectMask},
@@ -116,6 +116,9 @@ struct RectMazeGenAlgorithm {
     /// Using Kruskal's algorithm
     #[arg(long)]
     kruskal: bool,
+    /// Using Prim's algorithm
+    #[arg(long)]
+    prim: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -259,6 +262,7 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
             ..
         } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
         RectMazeGenAlgorithm { kruskal: true, .. } => Ok(Box::new(KruskalMazeGenerator)),
+        RectMazeGenAlgorithm { prim: true, .. } => Ok(Box::new(PrimMazeGenerator)),
         RectMazeGenAlgorithm { btree: true, .. }
         | RectMazeGenAlgorithm {
             sidewinder: true, ..

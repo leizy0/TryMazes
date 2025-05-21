@@ -22,6 +22,9 @@ pub struct GeneralMaze2dAlgorithm {
     /// Using Kruskal's algorithm
     #[arg(long)]
     pub kruskal: bool,
+    /// Using Prim's algorithm
+    #[arg(long)]
+    pub prim: bool,
 }
 
 #[derive(Debug, Clone, Subcommand)]

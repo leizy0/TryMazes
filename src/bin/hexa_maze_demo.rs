@@ -4,7 +4,8 @@ use try_mazes::{
     cli::{GeneralMaze2dAlgorithm, GeneralRectMazeShape, MazeAction},
     gene::{
         AldousBroderMazeGenerator, HuntAndKillMazeGenerator, KruskalMazeGenerator,
-        RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator, hexa::HexaMazeGenerator,
+        PrimMazeGenerator, RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
+        hexa::HexaMazeGenerator,
     },
     maze::{hexa::HexaGrid, rect::RectMask},
     show::{MazePicture, hexa::HexaMazePainter},
@@ -43,6 +44,7 @@ fn main() -> Result<(), AnyError> {
             ..
         } => &RecursiveBacktrackerMazeGenerator,
         GeneralMaze2dAlgorithm { kruskal: true, .. } => &KruskalMazeGenerator,
+        GeneralMaze2dAlgorithm { prim: true, .. } => &PrimMazeGenerator,
         other_algorithm => unreachable!(
             "Invalid algorithm({:?}), should be refused by clap.",
             other_algorithm

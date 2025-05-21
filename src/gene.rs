@@ -304,3 +304,48 @@ impl Maze2dGenerator for KruskalMazeGenerator {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct PrimMazeGenerator;
+
+impl Maze2dGenerator for PrimMazeGenerator {
+    fn generate_2d(&self, grid: &mut dyn Grid2d) {
+        let cells_n = grid.cells_n();
+        let Some(start_pos) = grid.random_cell_pos() else {
+            return;
+        };
+        let mut neighbors = Vec::new();
+        grid.append_neighbors(&start_pos, &mut neighbors);
+        let mut edges: HashSet<_> = neighbors
+            .iter()
+            .map(|neighbor| MazeEdge::new(&start_pos, neighbor))
+            .collect();
+        let mut visited_pos: HashSet<_> = iter::once(start_pos).collect();
+        let mut rng = rand::rng();
+        while visited_pos.len() < cells_n {
+            let Some(edge) = edges.iter().choose(&mut rng).cloned() else {
+                break;
+            };
+            edges.remove(&edge);
+            let (from, to) = if !visited_pos.contains(&edge.low) {
+                debug_assert!(visited_pos.contains(&edge.high));
+                (edge.high, edge.low)
+            } else if !visited_pos.contains(&edge.high) {
+                (edge.low, edge.high)
+            } else {
+                continue;
+            };
+
+            grid.connect_to(&from, &to);
+            visited_pos.insert(to);
+            neighbors.clear();
+            grid.append_neighbors(&to, &mut neighbors);
+            edges.extend(
+                neighbors
+                    .iter()
+                    .filter(|neighbor| !visited_pos.contains(neighbor))
+                    .map(|neighbor| MazeEdge::new(&to, neighbor)),
+            );
+        }
+    }
+}
