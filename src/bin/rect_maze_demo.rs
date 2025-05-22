@@ -5,8 +5,9 @@ use clap::{Args, Parser, Subcommand};
 use thiserror::Error;
 use try_mazes::{
     gene::{
-        AldousBroderMazeGenerator, HuntAndKillMazeGenerator, KruskalMazeGenerator,
-        PrimMazeGenerator, RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
+        AldousBroderMazeGenerator, GrowingTreeMazeGenerator, HuntAndKillMazeGenerator,
+        KruskalMazeGenerator, PrimMazeGenerator, RecursiveBacktrackerMazeGenerator,
+        WilsonMazeGenerator,
         rect::{BTreeMazeGenerator, DiagonalDirection, RectMazeGenerator, SideWinderMazeGenerator},
     },
     maze::rect::{RectGrid, RectMask},
@@ -119,6 +120,9 @@ struct RectMazeGenAlgorithm {
     /// Using Prim's algorithm
     #[arg(long)]
     prim: bool,
+    /// Using growing tree algorithm
+    #[arg(long)]
+    growing_tree: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -263,6 +267,9 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
         } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
         RectMazeGenAlgorithm { kruskal: true, .. } => Ok(Box::new(KruskalMazeGenerator)),
         RectMazeGenAlgorithm { prim: true, .. } => Ok(Box::new(PrimMazeGenerator)),
+        RectMazeGenAlgorithm {
+            growing_tree: true, ..
+        } => Ok(Box::new(GrowingTreeMazeGenerator)),
         RectMazeGenAlgorithm { btree: true, .. }
         | RectMazeGenAlgorithm {
             sidewinder: true, ..

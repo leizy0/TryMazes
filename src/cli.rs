@@ -25,6 +25,9 @@ pub struct GeneralMaze2dAlgorithm {
     /// Using Prim's algorithm
     #[arg(long)]
     pub prim: bool,
+    /// Using growing tree algorithm
+    #[arg(long)]
+    pub growing_tree: bool,
 }
 
 #[derive(Debug, Clone, Subcommand)]

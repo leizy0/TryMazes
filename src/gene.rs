@@ -1,9 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, LinkedList},
     iter,
 };
 
-use rand::seq::IteratorRandom;
+use rand::{Rng, seq::IteratorRandom};
 
 use crate::maze::{Grid2d, Position2d};
 
@@ -346,6 +346,46 @@ impl Maze2dGenerator for PrimMazeGenerator {
                     .filter(|neighbor| !visited_pos.contains(neighbor))
                     .map(|neighbor| MazeEdge::new(&to, neighbor)),
             );
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct GrowingTreeMazeGenerator;
+
+impl Maze2dGenerator for GrowingTreeMazeGenerator {
+    fn generate_2d(&self, grid: &mut dyn Grid2d) {
+        let cells_n = grid.cells_n();
+        let Some(start_pos) = grid.random_cell_pos() else {
+            return;
+        };
+        let mut active_pos: LinkedList<_> = iter::once(start_pos).collect();
+        let mut visited_pos: HashSet<_> = iter::once(start_pos).collect();
+        let mut rng = rand::rng();
+        let mut neighbors = Vec::new();
+        while visited_pos.len() < cells_n {
+            if active_pos.is_empty() {
+                break;
+            }
+            let active_ind = rng.random_range(0..active_pos.len());
+            let pos = *active_pos.iter().nth(active_ind).unwrap();
+            neighbors.clear();
+            grid.append_neighbors(&pos, &mut neighbors);
+            let Some(neighbor) = neighbors
+                .iter()
+                .filter(|neighbor| !visited_pos.contains(neighbor))
+                .choose(&mut rng)
+            else {
+                // No unvisited neighbor is available, so delete the selected active position
+                let mut tail = active_pos.split_off(active_ind + 1);
+                active_pos.pop_back();
+                active_pos.append(&mut tail);
+                continue;
+            };
+
+            active_pos.push_back(*neighbor);
+            visited_pos.insert(*neighbor);
+            grid.connect_to(&pos, neighbor);
         }
     }
 }
