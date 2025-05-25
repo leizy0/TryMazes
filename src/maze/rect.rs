@@ -4,6 +4,7 @@ use std::{
     fs::File,
     io::{BufRead, BufReader},
     iter,
+    marker::PhantomData,
     path::Path,
 };
 
@@ -14,7 +15,7 @@ use thiserror::Error;
 
 use crate::show::rect::{AsciiBoxCharset, RectMazeCmdDisplay};
 
-use super::{GeneralRectGrid, Grid2d, LayerGrid, Position2d};
+use super::{GeneralRectGrid, Grid2d, LayerGrid, MaskType, NoMask, Position2d, WithMask};
 
 #[derive(Debug, Clone, Error)]
 enum Error {
@@ -250,9 +251,9 @@ struct RectCell {
 }
 
 #[derive(Debug, Clone)]
-pub struct RectGrid(GeneralRectGrid<RectCell>);
+pub struct RectGrid<M: MaskType>(GeneralRectGrid<RectCell>, PhantomData<M>);
 
-impl Grid2d for RectGrid {
+impl<M: MaskType + Clone> Grid2d for RectGrid<M> {
     fn cells_n(&self) -> usize {
         self.0.cells_n()
     }
@@ -297,7 +298,7 @@ impl Grid2d for RectGrid {
     }
 }
 
-impl LayerGrid for RectGrid {
+impl LayerGrid for RectGrid<NoMask> {
     fn layers_n(&self) -> usize {
         self.0.height
     }
@@ -321,15 +322,25 @@ impl LayerGrid for RectGrid {
     }
 }
 
-impl RectGrid {
+impl RectGrid<NoMask> {
     pub fn new(width: usize, height: usize) -> Self {
-        Self(GeneralRectGrid::<RectCell>::new(width, height))
+        RectGrid::<NoMask>(
+            GeneralRectGrid::<RectCell>::new(width, height),
+            PhantomData::<NoMask>,
+        )
     }
+}
 
-    pub fn with_mask(mask: &RectMask) -> Self {
-        Self(GeneralRectGrid::<RectCell>::with_mask(mask))
+impl RectGrid<WithMask> {
+    pub fn new(mask: &RectMask) -> Self {
+        RectGrid::<WithMask>(
+            GeneralRectGrid::<RectCell>::with_mask(mask),
+            PhantomData::<WithMask>,
+        )
     }
+}
 
+impl<M: MaskType> RectGrid<M> {
     pub fn size(&self) -> (usize, usize) {
         self.0.size()
     }
@@ -380,7 +391,10 @@ impl RectGrid {
 }
 
 #[derive(Debug, Clone)]
-pub struct RectMaze(RectGrid);
+pub enum RectMaze {
+    NoMask(RectGrid<NoMask>),
+    WithMask(RectGrid<WithMask>),
+}
 
 impl Display for RectMaze {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -389,19 +403,24 @@ impl Display for RectMaze {
 }
 
 impl RectMaze {
-    pub fn new(grid: RectGrid) -> Self {
-        Self(grid)
-    }
-
     pub fn size(&self) -> (usize, usize) {
-        self.0.size()
+        match self {
+            RectMaze::NoMask(rect_grid) => rect_grid.size(),
+            RectMaze::WithMask(rect_grid) => rect_grid.size(),
+        }
     }
 
     pub fn is_cell(&self, pos: &RectPosition) -> bool {
-        self.0.0.is_cell(&(*pos).into())
+        match self {
+            RectMaze::NoMask(rect_grid) => rect_grid.0.is_cell(&(*pos).into()),
+            RectMaze::WithMask(rect_grid) => rect_grid.0.is_cell(&(*pos).into()),
+        }
     }
 
     pub fn is_connected_to(&self, pos: &RectPosition, dir: RectDirection) -> bool {
-        self.0.is_connected_to(pos, dir)
+        match self {
+            RectMaze::NoMask(rect_grid) => rect_grid.is_connected_to(pos, dir),
+            RectMaze::WithMask(rect_grid) => rect_grid.is_connected_to(pos, dir),
+        }
     }
 }

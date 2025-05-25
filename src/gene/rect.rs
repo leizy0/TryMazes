@@ -1,12 +1,15 @@
 use clap::ValueEnum;
 use rand::Rng;
 
-use crate::maze::rect::{RectDirection, RectGrid, RectMaze, RectPosition};
+use crate::maze::{
+    MaskType, NoMask, WithMask,
+    rect::{RectDirection, RectGrid, RectMaze, RectPosition},
+};
 
 use super::{LayerMazeGenerator, Maze2dGenerator};
 
-pub trait RectMazeGenerator {
-    fn generate(&self, grid: RectGrid) -> RectMaze;
+pub trait RectMazeGenerator<M: MaskType> {
+    fn generate(&self, grid: RectGrid<M>) -> RectMaze;
 }
 
 #[derive(Debug)]
@@ -14,10 +17,17 @@ pub struct RectMaze2dGenerator<G: Maze2dGenerator> {
     generator: G,
 }
 
-impl<G: Maze2dGenerator> RectMazeGenerator for RectMaze2dGenerator<G> {
-    fn generate(&self, mut grid: RectGrid) -> RectMaze {
+impl<G: Maze2dGenerator> RectMazeGenerator<NoMask> for RectMaze2dGenerator<G> {
+    fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
         self.generator.generate_2d(&mut grid);
-        RectMaze::new(grid)
+        RectMaze::NoMask(grid)
+    }
+}
+
+impl<G: Maze2dGenerator> RectMazeGenerator<WithMask> for RectMaze2dGenerator<G> {
+    fn generate(&self, mut grid: RectGrid<WithMask>) -> RectMaze {
+        self.generator.generate_2d(&mut grid);
+        RectMaze::WithMask(grid)
     }
 }
 
@@ -32,10 +42,10 @@ pub struct RectLayzerMazeGenerator<G: LayerMazeGenerator> {
     generator: G,
 }
 
-impl<G: LayerMazeGenerator> RectMazeGenerator for RectLayzerMazeGenerator<G> {
-    fn generate(&self, mut grid: RectGrid) -> RectMaze {
+impl<G: LayerMazeGenerator> RectMazeGenerator<NoMask> for RectLayzerMazeGenerator<G> {
+    fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
         self.generator.generate_layer(&mut grid);
-        RectMaze::new(grid)
+        RectMaze::NoMask(grid)
     }
 }
 
@@ -75,8 +85,8 @@ impl BTreeMazeGenerator {
     }
 }
 
-impl RectMazeGenerator for BTreeMazeGenerator {
-    fn generate(&self, mut grid: RectGrid) -> RectMaze {
+impl RectMazeGenerator<NoMask> for BTreeMazeGenerator {
+    fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
         let (width, height) = grid.size();
         let mut rng = rand::rng();
         let (horz_dir, vert_dir) = self.con_dir.hv_dirs();
@@ -99,8 +109,7 @@ impl RectMazeGenerator for BTreeMazeGenerator {
                 }
             }
         }
-
-        RectMaze::new(grid)
+        RectMaze::NoMask(grid)
     }
 }
 
@@ -115,8 +124,8 @@ impl SideWinderMazeGenerator {
     }
 }
 
-impl RectMazeGenerator for SideWinderMazeGenerator {
-    fn generate(&self, mut grid: RectGrid) -> RectMaze {
+impl RectMazeGenerator<NoMask> for SideWinderMazeGenerator {
+    fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
         let (width, height) = grid.size();
         let mut rng = rand::rng();
         let (horz_dir, vert_dir) = self.con_dir.hv_dirs();
@@ -151,7 +160,6 @@ impl RectMazeGenerator for SideWinderMazeGenerator {
                 }
             }
         }
-
-        RectMaze::new(grid)
+        RectMaze::NoMask(grid)
     }
 }

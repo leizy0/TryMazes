@@ -1,8 +1,15 @@
 use std::path::PathBuf;
 
 use clap::Subcommand;
+use thiserror::Error;
 
 use crate::show::SavePictureFormat;
+
+#[derive(Debug, Clone, Error)]
+pub enum Error {
+    #[error("Algorithm {0} doesn't support mask.")]
+    NotSupportMask(String),
+}
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum GeneralRectMazeShape {

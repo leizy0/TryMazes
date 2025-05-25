@@ -2,8 +2,9 @@ use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 
 use anyhow::Error as AnyError;
 use clap::{Args, Parser, Subcommand};
-use thiserror::Error;
+
 use try_mazes::{
+    cli::Error,
     gene::{
         AldousBroderMazeGenerator, EllerMazeGenerator, GrowingTreeMazeGenerator,
         HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
@@ -13,7 +14,10 @@ use try_mazes::{
             RectMazeGenerator, SideWinderMazeGenerator,
         },
     },
-    maze::rect::{RectGrid, RectMask},
+    maze::{
+        NoMask, WithMask,
+        rect::{RectGrid, RectMask},
+    },
     show::{
         MazePicture, SavePictureFormat,
         rect::{AsciiBoxCharset, RectMazeCmdDisplay, RectMazePainter, UnicodeBoxCharset},
@@ -25,9 +29,41 @@ const DEF_CELL_WIDTH: usize = 50;
 
 fn main() -> Result<(), AnyError> {
     let maze_input = RectMazeInputArgs::parse();
-    let grid = make_grid(&maze_input)?;
-    let generator = make_generator(&maze_input)?;
-    let maze = generator.generate(grid);
+    let maze = match &maze_input.action {
+        MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
+            match shape {
+                MazeShape::Size(MazeSize { width, height }) => {
+                    let grid = RectGrid::<NoMask>::new(*width, *height);
+                    let generator = make_generator_no_mask(&maze_input);
+                    generator.generate(grid)
+                }
+                MazeShape::Mask(mask_info) => {
+                    let grid = match mask_info {
+                        MazeMaskInfo {
+                            text: true,
+                            path: Some(mask_path),
+                            ..
+                        } => RectGrid::<WithMask>::new(&RectMask::try_from_text_file(mask_path)?),
+                        MazeMaskInfo {
+                            image: true,
+                            path: Some(mask_path),
+                            ..
+                        } => RectGrid::<WithMask>::new(&RectMask::try_from_image_file(mask_path)?),
+                        other_shape => unreachable!(
+                            "Given invalid shape information({:?}), should be refused by clap.",
+                            other_shape
+                        ),
+                    };
+
+                    let generator = make_generator_with_mask(&maze_input)?;
+                    generator.generate(grid)
+                }
+            }
+        }
+    };
+    // let grid = make_grid(&maze_input)?;
+    // let generator = make_generator(&maze_input)?;
+    // let maze = generator.generate(grid);
     match maze_input.action {
         MazeAction::Show(ShowArgs { ascii: true, .. }) => {
             println!("{}", RectMazeCmdDisplay(&maze, AsciiBoxCharset))
@@ -202,10 +238,8 @@ enum MazeShape {
 #[derive(Debug, Clone, Copy, Args)]
 struct MazeSize {
     /// Width of maze
-    #[arg(long)]
     width: usize,
     /// Height of maze
-    #[arg(long)]
     height: usize,
 }
 
@@ -222,41 +256,51 @@ struct MazeMaskInfo {
     path: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Error)]
-enum Error {
-    #[error("Algorithm {0} doesn't support mask.")]
-    NotSupportMask(String),
-}
-
-fn make_grid(input: &RectMazeInputArgs) -> Result<RectGrid, AnyError> {
-    match &input.action {
-        MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
-            match shape {
-                MazeShape::Size(MazeSize { width, height }) => Ok(RectGrid::new(*width, *height)),
-                MazeShape::Mask(MazeMaskInfo {
-                    text: true,
-                    path: Some(mask_path),
-                    ..
-                }) => Ok(RectGrid::with_mask(&RectMask::try_from_text_file(
-                    mask_path,
-                )?)),
-                MazeShape::Mask(MazeMaskInfo {
-                    image: true,
-                    path: Some(mask_path),
-                    ..
-                }) => Ok(RectGrid::with_mask(&RectMask::try_from_image_file(
-                    mask_path,
-                )?)),
-                other_shape => unreachable!(
-                    "Given invalid shape information({:?}), should be refused by clap.",
-                    other_shape
-                ),
-            }
+fn make_generator_no_mask(input: &RectMazeInputArgs) -> Box<dyn RectMazeGenerator<NoMask>> {
+    match input.algorithm {
+        RectMazeGenAlgorithm {
+            aldous_broder: true,
+            ..
+        } => Box::new(RectMaze2dGenerator::new(AldousBroderMazeGenerator)),
+        RectMazeGenAlgorithm { wilson: true, .. } => {
+            Box::new(RectMaze2dGenerator::new(WilsonMazeGenerator))
         }
+        RectMazeGenAlgorithm {
+            hunt_and_kill: true,
+            ..
+        } => Box::new(RectMaze2dGenerator::new(HuntAndKillMazeGenerator)),
+        RectMazeGenAlgorithm {
+            recursive_backtracker: true,
+            ..
+        } => Box::new(RectMaze2dGenerator::new(RecursiveBacktrackerMazeGenerator)),
+        RectMazeGenAlgorithm { kruskal: true, .. } => {
+            Box::new(RectMaze2dGenerator::new(KruskalMazeGenerator))
+        }
+        RectMazeGenAlgorithm { prim: true, .. } => {
+            Box::new(RectMaze2dGenerator::new(PrimMazeGenerator))
+        }
+        RectMazeGenAlgorithm {
+            growing_tree: true, ..
+        } => Box::new(RectMaze2dGenerator::new(GrowingTreeMazeGenerator)),
+        RectMazeGenAlgorithm { eller: true, .. } => {
+            Box::new(RectLayzerMazeGenerator::new(EllerMazeGenerator))
+        }
+        RectMazeGenAlgorithm { btree: true, .. } => {
+            Box::new(BTreeMazeGenerator::new(input.con_dir.unwrap()))
+        }
+        RectMazeGenAlgorithm {
+            sidewinder: true, ..
+        } => Box::new(SideWinderMazeGenerator::new(input.con_dir.unwrap())),
+        other_algorithm => unreachable!(
+            "Given unknown algorithm or missing arguments of algorithm({:?}), should be refused by clap.",
+            other_algorithm
+        ),
     }
 }
 
-fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator>, AnyError> {
+fn make_generator_with_mask(
+    input: &RectMazeInputArgs,
+) -> Result<Box<dyn RectMazeGenerator<WithMask>>, AnyError> {
     match input.algorithm {
         RectMazeGenAlgorithm {
             aldous_broder: true,
@@ -287,33 +331,14 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
             growing_tree: true, ..
         } => Ok(Box::new(RectMaze2dGenerator::new(GrowingTreeMazeGenerator))),
         RectMazeGenAlgorithm { eller: true, .. } => {
-            Ok(Box::new(RectLayzerMazeGenerator::new(EllerMazeGenerator)))
+            Err(Error::NotSupportMask("Eller".to_string()).into())
         }
-        RectMazeGenAlgorithm { btree: true, .. }
-        | RectMazeGenAlgorithm {
+        RectMazeGenAlgorithm { btree: true, .. } => {
+            Err(Error::NotSupportMask("BTree".to_string()).into())
+        }
+        RectMazeGenAlgorithm {
             sidewinder: true, ..
-        } => match &input.action {
-            MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
-                match shape {
-                    MazeShape::Size(_) => {
-                        if input.algorithm.btree {
-                            Ok(Box::new(BTreeMazeGenerator::new(input.con_dir.unwrap())))
-                        } else {
-                            Ok(Box::new(SideWinderMazeGenerator::new(
-                                input.con_dir.unwrap(),
-                            )))
-                        }
-                    }
-                    MazeShape::Mask(_) => {
-                        if input.algorithm.btree {
-                            Err(Error::NotSupportMask("BTree".to_string()).into())
-                        } else {
-                            Err(Error::NotSupportMask("Sidewinder".to_string()).into())
-                        }
-                    }
-                }
-            }
-        },
+        } => Err(Error::NotSupportMask("Sidewinder".to_string()).into()),
         other_algorithm => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm({:?}), should be refused by clap.",
             other_algorithm

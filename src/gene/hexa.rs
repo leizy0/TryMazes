@@ -1,9 +1,12 @@
-use crate::maze::hexa::{HexaGrid, HexaMaze};
+use crate::maze::{
+    MaskType, NoMask, WithMask,
+    hexa::{HexaGrid, HexaMaze},
+};
 
 use super::{LayerMazeGenerator, Maze2dGenerator};
 
-pub trait HexaMazeGenerator {
-    fn generate(&self, grid: HexaGrid) -> HexaMaze;
+pub trait HexaMazeGenerator<M: MaskType> {
+    fn generate(&self, grid: HexaGrid<M>) -> HexaMaze;
 }
 
 #[derive(Debug)]
@@ -11,10 +14,17 @@ pub struct HexaMaze2dGenerator<G: Maze2dGenerator> {
     generator: G,
 }
 
-impl<G: Maze2dGenerator> HexaMazeGenerator for HexaMaze2dGenerator<G> {
-    fn generate(&self, mut grid: HexaGrid) -> HexaMaze {
+impl<G: Maze2dGenerator> HexaMazeGenerator<NoMask> for HexaMaze2dGenerator<G> {
+    fn generate(&self, mut grid: HexaGrid<NoMask>) -> HexaMaze {
         self.generator.generate_2d(&mut grid);
-        HexaMaze::new(grid)
+        HexaMaze::NoMask(grid)
+    }
+}
+
+impl<G: Maze2dGenerator> HexaMazeGenerator<WithMask> for HexaMaze2dGenerator<G> {
+    fn generate(&self, mut grid: HexaGrid<WithMask>) -> HexaMaze {
+        self.generator.generate_2d(&mut grid);
+        HexaMaze::WithMask(grid)
     }
 }
 
@@ -29,10 +39,10 @@ pub struct HexaLayerMazeGenerator<G: LayerMazeGenerator> {
     generator: G,
 }
 
-impl<G: LayerMazeGenerator> HexaMazeGenerator for HexaLayerMazeGenerator<G> {
-    fn generate(&self, mut grid: HexaGrid) -> HexaMaze {
+impl<G: LayerMazeGenerator> HexaMazeGenerator<NoMask> for HexaLayerMazeGenerator<G> {
+    fn generate(&self, mut grid: HexaGrid<NoMask>) -> HexaMaze {
         self.generator.generate_layer(&mut grid);
-        HexaMaze::new(grid)
+        HexaMaze::NoMask(grid)
     }
 }
 

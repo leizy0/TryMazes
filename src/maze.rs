@@ -11,6 +11,16 @@ pub mod tri;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Position2d(pub usize, pub usize);
 
+pub(crate) trait MaskType {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct NoMask;
+impl MaskType for NoMask {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct WithMask;
+impl MaskType for WithMask {}
+
 pub trait Grid2d {
     fn cells_n(&self) -> usize;
     fn random_cell_pos(&self) -> Option<Position2d>;

@@ -1,4 +1,8 @@
-use super::{GeneralRectGrid, Grid2d, LayerGrid, Position2d, rect::RectMask};
+use std::marker::PhantomData;
+
+use super::{
+    GeneralRectGrid, Grid2d, LayerGrid, MaskType, NoMask, Position2d, WithMask, rect::RectMask,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HexaDirection {
@@ -88,9 +92,9 @@ struct HexaCell {
 }
 
 #[derive(Debug, Clone)]
-pub struct HexaGrid(GeneralRectGrid<HexaCell>);
+pub struct HexaGrid<M: MaskType>(GeneralRectGrid<HexaCell>, PhantomData<M>);
 
-impl Grid2d for HexaGrid {
+impl<M: MaskType> Grid2d for HexaGrid<M> {
     fn cells_n(&self) -> usize {
         self.0.cells_n()
     }
@@ -147,7 +151,7 @@ impl Grid2d for HexaGrid {
     }
 }
 
-impl LayerGrid for HexaGrid {
+impl LayerGrid for HexaGrid<NoMask> {
     fn layers_n(&self) -> usize {
         self.0.height
     }
@@ -171,15 +175,25 @@ impl LayerGrid for HexaGrid {
     }
 }
 
-impl HexaGrid {
+impl HexaGrid<NoMask> {
     pub fn new(width: usize, height: usize) -> Self {
-        Self(GeneralRectGrid::<HexaCell>::new(width, height))
+        HexaGrid::<NoMask>(
+            GeneralRectGrid::<HexaCell>::new(width, height),
+            PhantomData::<NoMask>,
+        )
     }
+}
 
-    pub fn with_mask(mask: &RectMask) -> Self {
-        Self(GeneralRectGrid::<HexaCell>::with_mask(mask))
+impl HexaGrid<WithMask> {
+    pub fn new(mask: &RectMask) -> Self {
+        HexaGrid::<WithMask>(
+            GeneralRectGrid::<HexaCell>::with_mask(mask),
+            PhantomData::<WithMask>,
+        )
     }
+}
 
+impl<M: MaskType> HexaGrid<M> {
     pub fn neighbor_pos(
         &self,
         hexa_pos: &HexaPosition,
@@ -197,29 +211,29 @@ impl HexaGrid {
 }
 
 #[derive(Debug, Clone)]
-pub struct HexaMaze(HexaGrid);
+pub enum HexaMaze {
+    NoMask(HexaGrid<NoMask>),
+    WithMask(HexaGrid<WithMask>),
+}
 
 impl HexaMaze {
-    pub fn new(grid: HexaGrid) -> Self {
-        Self(grid)
-    }
-
     pub fn size(&self) -> (usize, usize) {
-        self.0.0.size()
+        self.grid().size()
     }
 
     pub fn is_cell(&self, pos: &HexaPosition) -> bool {
-        self.0.0.is_cell(&(*pos).into())
+        self.grid().is_cell(&(*pos).into())
     }
 
     pub fn is_connected_to(&self, hexa_pos: &HexaPosition, dir: HexaDirection) -> bool {
         let pos = (*hexa_pos).into();
+        let grid = self.grid();
         self.is_cell(hexa_pos)
             && match dir {
                 direct_dir @ (HexaDirection::North
                 | HexaDirection::SouthWest
                 | HexaDirection::NorthWest) => {
-                    let cell = self.0.0.cell(&pos).unwrap();
+                    let cell = grid.cell(&pos).unwrap();
                     match direct_dir {
                         HexaDirection::North => cell.is_connected_to_north,
                         HexaDirection::SouthWest => cell.is_connected_to_southwest,
@@ -231,9 +245,7 @@ impl HexaMaze {
                 | HexaDirection::SouthEast
                 | HexaDirection::South) => {
                     hexa_pos.neighbor(indirect_dir).is_some_and(|neighbor| {
-                        self.0
-                            .0
-                            .cell(&neighbor.into())
+                        grid.cell(&neighbor.into())
                             .is_some_and(|cell| match indirect_dir {
                                 HexaDirection::NorthEast => cell.is_connected_to_southwest,
                                 HexaDirection::SouthEast => cell.is_connected_to_northwest,
@@ -243,5 +255,12 @@ impl HexaMaze {
                     })
                 }
             }
+    }
+
+    fn grid(&self) -> &GeneralRectGrid<HexaCell> {
+        match self {
+            HexaMaze::NoMask(hexa_grid) => &hexa_grid.0,
+            HexaMaze::WithMask(hexa_grid) => &hexa_grid.0,
+        }
     }
 }
