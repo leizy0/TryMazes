@@ -14,7 +14,7 @@ use thiserror::Error;
 
 use crate::show::rect::{AsciiBoxCharset, RectMazeCmdDisplay};
 
-use super::{GeneralRectGrid, Grid2d, Position2d};
+use super::{GeneralRectGrid, Grid2d, LayerGrid, Position2d};
 
 #[derive(Debug, Clone, Error)]
 enum Error {
@@ -294,6 +294,30 @@ impl Grid2d for RectGrid {
                         .is_some_and(|neighbor| neighbor == rect_to)
                 })
                 .is_some_and(|connect_dir| self.connect_to(&rect_from, *connect_dir))
+    }
+}
+
+impl LayerGrid for RectGrid {
+    fn layers_n(&self) -> usize {
+        self.0.height
+    }
+
+    fn cells_n_at(&self, _layer_ind: usize) -> usize {
+        self.0.width
+    }
+
+    fn append_neighbors_upper_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
+        neighbors.extend(
+            self.neighbor_pos(&(*pos).into(), RectDirection::North)
+                .map(Position2d::from),
+        );
+    }
+
+    fn append_neighbors_lower_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
+        neighbors.extend(
+            self.neighbor_pos(&(*pos).into(), RectDirection::South)
+                .map(Position2d::from),
+        );
     }
 }
 

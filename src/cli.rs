@@ -1,34 +1,8 @@
 use std::path::PathBuf;
 
-use clap::{Args, Subcommand};
+use clap::Subcommand;
 
 use crate::show::SavePictureFormat;
-
-#[derive(Debug, Clone, Args)]
-#[group(required = true, multiple = false)]
-pub struct GeneralMaze2dAlgorithm {
-    /// Using Aldous-Broder algorithm
-    #[arg(long)]
-    pub aldous_broder: bool,
-    /// Using Wilson's algorithm
-    #[arg(long)]
-    pub wilson: bool,
-    /// Using Hunt-and-Kill algorithm
-    #[arg(long)]
-    pub hunt_and_kill: bool,
-    /// Using recursive backtracker algorithm
-    #[arg(long)]
-    pub recursive_backtracker: bool,
-    /// Using Kruskal's algorithm
-    #[arg(long)]
-    pub kruskal: bool,
-    /// Using Prim's algorithm
-    #[arg(long)]
-    pub prim: bool,
-    /// Using growing tree algorithm
-    #[arg(long)]
-    pub growing_tree: bool,
-}
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum GeneralRectMazeShape {

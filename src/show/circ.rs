@@ -33,7 +33,7 @@ impl MazePaint for CircMazePainter<'_> {
             + f32::from(u16::try_from(self.wall_thickness)?) / 2.0;
         let ring_interval = f32::from(u16::try_from(ring_interval)?);
         for ring in 1..rings_n {
-            let ring_cells_n = maze.ring_cells_n(ring).unwrap();
+            let ring_cells_n = maze.ring_cells_n(ring);
             let cell_angle_interval = 360.0 / f32::from(u16::try_from(ring_cells_n)?);
             let mut cur_angle = 0f32;
             for cell in 0..ring_cells_n {

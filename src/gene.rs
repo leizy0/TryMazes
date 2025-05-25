@@ -1,11 +1,13 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet, LinkedList},
+    hash::Hash,
     iter,
 };
 
 use rand::{Rng, seq::IteratorRandom};
 
-use crate::maze::{Grid2d, Position2d};
+use crate::maze::{Grid2d, LayerGrid, Position2d};
 
 pub mod circ;
 pub mod hexa;
@@ -211,35 +213,48 @@ impl MazeEdge {
     }
 }
 
-struct Union {
-    ele_inds: HashMap<Position2d, usize>,
-    set_ids: Vec<usize>,
+struct Union<T: Hash + Eq> {
+    ele_inds: HashMap<T, usize>,
+    set_ids: RefCell<Vec<usize>>,
     sets_n: usize,
 }
 
-impl<'a> FromIterator<&'a Position2d> for Union {
-    fn from_iter<T: IntoIterator<Item = &'a Position2d>>(iter: T) -> Self {
-        let mut ele_inds = HashMap::new();
-        for ele in iter.into_iter().cloned() {
-            if !ele_inds.contains_key(&ele) {
-                ele_inds.insert(ele, ele_inds.len());
-            }
+impl<T: Hash + Eq> FromIterator<T> for Union<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut new_union = Union::new();
+        for ele in iter.into_iter() {
+            new_union.add(ele);
         }
-        let set_ids: Vec<_> = (0..ele_inds.len()).collect();
-        Self {
-            ele_inds,
-            sets_n: set_ids.len(),
-            set_ids,
-        }
+        new_union
     }
 }
 
-impl Union {
+impl<T: Hash + Eq> Union<T> {
+    pub fn new() -> Self {
+        Self {
+            ele_inds: HashMap::new(),
+            set_ids: RefCell::new(Vec::new()),
+            sets_n: 0,
+        }
+    }
+
     pub fn sets_n(&self) -> usize {
         self.sets_n
     }
 
-    pub fn merge(&mut self, ele0: &Position2d, ele1: &Position2d) -> bool {
+    pub fn add(&mut self, ele: T) {
+        if self.ele_inds.contains_key(&ele) {
+            return;
+        }
+
+        debug_assert!(self.ele_inds.len() == self.set_ids.borrow().len());
+        let ind = self.ele_inds.len();
+        self.ele_inds.insert(ele, ind);
+        self.set_ids.borrow_mut().push(ind);
+        self.sets_n += 1;
+    }
+
+    pub fn merge(&mut self, ele0: &T, ele1: &T) -> bool {
         let Some(set_id0) = self.ele_set_id(ele0) else {
             return false;
         };
@@ -252,23 +267,53 @@ impl Union {
 
         let from_id = set_id0.min(set_id1);
         let to_id = set_id0.max(set_id1);
-        self.set_ids[from_id] = to_id;
+        self.set_ids.borrow_mut()[from_id] = to_id;
         self.sets_n -= 1;
         true
     }
 
-    fn ele_set_id(&mut self, ele: &Position2d) -> Option<usize> {
-        self.ele_inds.get(ele).copied().map(|ind| self.set_id(ind))
+    pub fn into_sets(self) -> Vec<HashSet<T>> {
+        let set_id_to_ind: HashMap<_, _> = self
+            .set_ids
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter(|(ele_ind, id)| ele_ind == *id)
+            .map(|(_, id)| *id)
+            .enumerate()
+            .map(|(set_ind, id)| (id, set_ind))
+            .collect();
+        let mut sets: Vec<_> = iter::repeat_with(|| HashSet::new())
+            .take(set_id_to_ind.len())
+            .collect();
+        for (pos, ind) in self.ele_inds {
+            let set_ind = set_id_to_ind[&Self::set_id(&self.set_ids, ind)];
+            sets[set_ind].insert(pos);
+        }
+
+        sets
     }
 
-    fn set_id(&mut self, ind: usize) -> usize {
-        let parent_ind = self.set_ids[ind];
+    fn is_union(&self, ele0: &T, ele1: &T) -> Option<bool> {
+        self.ele_set_id(ele0)
+            .and_then(|set_ind0| self.ele_set_id(ele1).map(|set_ind1| set_ind0 == set_ind1))
+    }
+
+    fn ele_set_id(&self, ele: &T) -> Option<usize> {
+        self.ele_inds
+            .get(ele)
+            .copied()
+            .map(|ind| Self::set_id(&self.set_ids, ind))
+    }
+
+    fn set_id(set_ids: &RefCell<Vec<usize>>, ind: usize) -> usize {
+        let parent_ind = set_ids.borrow()[ind];
         if parent_ind == ind {
             return ind;
         }
 
-        let root_ind = self.set_id(parent_ind);
-        self.set_ids[ind] = root_ind;
+        let root_ind = Self::set_id(set_ids, parent_ind);
+        set_ids.borrow_mut()[ind] = root_ind;
         root_ind
     }
 }
@@ -291,12 +336,12 @@ impl Maze2dGenerator for KruskalMazeGenerator {
             );
         }
         let mut rng = rand::rng();
-        let mut union = Union::from_iter(all_pos.iter());
-        while union.sets_n() > 1 {
+        let mut cell_pos_union = Union::from_iter(all_pos);
+        while cell_pos_union.sets_n() > 1 {
             let Some(edge) = edges.iter().choose(&mut rng).cloned() else {
                 break;
             };
-            if union.merge(&edge.low, &edge.high) {
+            if cell_pos_union.merge(&edge.low, &edge.high) {
                 grid.connect_to(&edge.low, &edge.high);
             }
 
@@ -386,6 +431,64 @@ impl Maze2dGenerator for GrowingTreeMazeGenerator {
             active_pos.push_back(*neighbor);
             visited_pos.insert(*neighbor);
             grid.connect_to(&pos, neighbor);
+        }
+    }
+}
+
+pub trait LayerMazeGenerator {
+    fn generate_layer(&self, grid: &mut dyn LayerGrid);
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct EllerMazeGenerator;
+
+impl LayerMazeGenerator for EllerMazeGenerator {
+    fn generate_layer(&self, grid: &mut dyn LayerGrid) {
+        let layers_n = grid.layers_n();
+        let mut layer_union = Union::new();
+        let mut rng = rand::rng();
+        let mut lower_neighbors = Vec::new();
+        for layer_ind in 0..layers_n {
+            let layer_cells_n = grid.cells_n_at(layer_ind);
+            for cell_ind in 0..layer_cells_n {
+                let pos = Position2d(layer_ind, cell_ind);
+                layer_union.add(pos);
+                let Some(last_neighbor) = grid.last_neighbor_pos(&pos) else {
+                    continue;
+                };
+                layer_union.add(last_neighbor);
+                let should_connect = !layer_union.is_union(&pos, &last_neighbor).unwrap()
+                    && (layer_ind == layers_n - 1 || rng.random_ratio(1, 2));
+                if should_connect {
+                    grid.connect_to(&last_neighbor, &pos);
+                    layer_union.merge(&pos, &last_neighbor);
+                }
+            }
+
+            if layer_ind == layers_n - 1 {
+                break;
+            }
+
+            let mut next_layer_union = Union::new();
+            let sets = layer_union.into_sets();
+            for set in sets {
+                let dig_pos = set.iter().choose(&mut rng).cloned().unwrap();
+                let mut first_dig_target = None;
+                for pos in set.into_iter() {
+                    let should_dig = pos == dig_pos || rng.random_ratio(1, 3);
+                    if should_dig {
+                        lower_neighbors.clear();
+                        grid.append_neighbors_lower_layer(&pos, &mut lower_neighbors);
+                        let dig_neighbor = lower_neighbors.iter().choose(&mut rng).unwrap();
+                        grid.connect_to(&pos, dig_neighbor);
+                        next_layer_union.add(*dig_neighbor);
+                        next_layer_union
+                            .merge(dig_neighbor, first_dig_target.get_or_insert(*dig_neighbor));
+                    }
+                }
+            }
+
+            layer_union = next_layer_union;
         }
     }
 }

@@ -1,4 +1,4 @@
-use super::{GeneralRectGrid, Grid2d, Position2d, rect::RectMask};
+use super::{GeneralRectGrid, Grid2d, LayerGrid, Position2d, rect::RectMask};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HexaDirection {
@@ -144,6 +144,30 @@ impl Grid2d for HexaGrid {
         }
 
         true
+    }
+}
+
+impl LayerGrid for HexaGrid {
+    fn layers_n(&self) -> usize {
+        self.0.height
+    }
+
+    fn cells_n_at(&self, _layer_ind: usize) -> usize {
+        self.0.width
+    }
+
+    fn append_neighbors_upper_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
+        neighbors.extend(
+            self.neighbor_pos(&(*pos).into(), HexaDirection::North)
+                .map(Position2d::from),
+        )
+    }
+
+    fn append_neighbors_lower_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
+        neighbors.extend(
+            self.neighbor_pos(&(*pos).into(), HexaDirection::South)
+                .map(Position2d::from),
+        )
     }
 }
 

@@ -5,10 +5,13 @@ use clap::{Args, Parser, Subcommand};
 use thiserror::Error;
 use try_mazes::{
     gene::{
-        AldousBroderMazeGenerator, GrowingTreeMazeGenerator, HuntAndKillMazeGenerator,
-        KruskalMazeGenerator, PrimMazeGenerator, RecursiveBacktrackerMazeGenerator,
-        WilsonMazeGenerator,
-        rect::{BTreeMazeGenerator, DiagonalDirection, RectMazeGenerator, SideWinderMazeGenerator},
+        AldousBroderMazeGenerator, EllerMazeGenerator, GrowingTreeMazeGenerator,
+        HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
+        RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
+        rect::{
+            BTreeMazeGenerator, DiagonalDirection, RectLayzerMazeGenerator, RectMaze2dGenerator,
+            RectMazeGenerator, SideWinderMazeGenerator,
+        },
     },
     maze::rect::{RectGrid, RectMask},
     show::{
@@ -123,6 +126,9 @@ struct RectMazeGenAlgorithm {
     /// Using growing tree algorithm
     #[arg(long)]
     growing_tree: bool,
+    /// Using Eller's algorithm
+    #[arg(long)]
+    eller: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -255,21 +261,34 @@ fn make_generator(input: &RectMazeInputArgs) -> Result<Box<dyn RectMazeGenerator
         RectMazeGenAlgorithm {
             aldous_broder: true,
             ..
-        } => Ok(Box::new(AldousBroderMazeGenerator)),
-        RectMazeGenAlgorithm { wilson: true, .. } => Ok(Box::new(WilsonMazeGenerator)),
+        } => Ok(Box::new(RectMaze2dGenerator::new(
+            AldousBroderMazeGenerator,
+        ))),
+        RectMazeGenAlgorithm { wilson: true, .. } => {
+            Ok(Box::new(RectMaze2dGenerator::new(WilsonMazeGenerator)))
+        }
         RectMazeGenAlgorithm {
             hunt_and_kill: true,
             ..
-        } => Ok(Box::new(HuntAndKillMazeGenerator)),
+        } => Ok(Box::new(RectMaze2dGenerator::new(HuntAndKillMazeGenerator))),
         RectMazeGenAlgorithm {
             recursive_backtracker: true,
             ..
-        } => Ok(Box::new(RecursiveBacktrackerMazeGenerator)),
-        RectMazeGenAlgorithm { kruskal: true, .. } => Ok(Box::new(KruskalMazeGenerator)),
-        RectMazeGenAlgorithm { prim: true, .. } => Ok(Box::new(PrimMazeGenerator)),
+        } => Ok(Box::new(RectMaze2dGenerator::new(
+            RecursiveBacktrackerMazeGenerator,
+        ))),
+        RectMazeGenAlgorithm { kruskal: true, .. } => {
+            Ok(Box::new(RectMaze2dGenerator::new(KruskalMazeGenerator)))
+        }
+        RectMazeGenAlgorithm { prim: true, .. } => {
+            Ok(Box::new(RectMaze2dGenerator::new(PrimMazeGenerator)))
+        }
         RectMazeGenAlgorithm {
             growing_tree: true, ..
-        } => Ok(Box::new(GrowingTreeMazeGenerator)),
+        } => Ok(Box::new(RectMaze2dGenerator::new(GrowingTreeMazeGenerator))),
+        RectMazeGenAlgorithm { eller: true, .. } => {
+            Ok(Box::new(RectLayzerMazeGenerator::new(EllerMazeGenerator)))
+        }
         RectMazeGenAlgorithm { btree: true, .. }
         | RectMazeGenAlgorithm {
             sidewinder: true, ..

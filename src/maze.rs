@@ -19,6 +19,24 @@ pub trait Grid2d {
     fn connect_to(&mut self, from: &Position2d, to: &Position2d) -> bool;
 }
 
+pub trait LayerGrid: Grid2d {
+    fn layers_n(&self) -> usize;
+    fn cells_n_at(&self, layer_ind: usize) -> usize;
+    fn append_neighbors_upper_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>);
+    fn append_neighbors_lower_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>);
+
+    fn last_neighbor_pos(&self, pos: &Position2d) -> Option<Position2d> {
+        pos.1
+            .checked_sub(1)
+            .map(|cell_ind| Position2d(pos.0, cell_ind))
+    }
+
+    fn next_neighbor_pos(&self, pos: &Position2d) -> Option<Position2d> {
+        Some(Position2d(pos.0, pos.1 + 1))
+            .filter(|next_pos| next_pos.1 < self.cells_n_at(next_pos.0))
+    }
+}
+
 pub trait DefaultInRectGrid {
     fn default_at(pos: &Position2d) -> Self;
 }

@@ -5,7 +5,7 @@ use std::{
 
 use rand::seq::IteratorRandom;
 
-use super::{Grid2d, Position2d};
+use super::{Grid2d, LayerGrid, Position2d};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CircDirection {
@@ -117,127 +117,6 @@ pub struct CircGrid {
     cells: Vec<CircCell>,
 }
 
-impl CircGrid {
-    pub fn new(rings_n: usize) -> Self {
-        let (ring_end_inds, cells) = Self::make_rings(rings_n);
-        Self {
-            rings_n,
-            ring_end_inds,
-            cells,
-        }
-    }
-
-    fn make_rings(rings_n: usize) -> (Vec<usize>, Vec<CircCell>) {
-        let mut rings_end_ind = vec![1; rings_n];
-        // Calculate the number of cells in each ring.
-        for ring_ind in 1..rings_n {
-            let last_ring_cells_n = rings_end_ind[ring_ind - 1];
-            // Make the arc length of each cell is close to ring interval(1.0 / rings_n).
-            rings_end_ind[ring_ind] = last_ring_cells_n
-                * (2f32 * consts::PI * ring_ind as f32 / last_ring_cells_n as f32).round() as usize;
-        }
-        // Accumulate the number of cells before each ring.
-        for ring_ind in 1..rings_n {
-            rings_end_ind[ring_ind] += rings_end_ind[ring_ind - 1];
-        }
-
-        let cells = vec![CircCell::default(); rings_end_ind.last().copied().unwrap_or(0)];
-        (rings_end_ind, cells)
-    }
-
-    pub fn neighbor_pos_iter(&self, pos: &CircPosition, dir: CircDirection) -> CircCellPosIter {
-        if self.pos_to_ind(pos).is_some() {
-            let ring_cells_n = self.ring_cells_n(pos.ring).unwrap();
-            let last_ring_cells_n = pos
-                .ring
-                .checked_sub(1)
-                .map(|last_ring| self.ring_cells_n(last_ring).unwrap())
-                .unwrap_or(0);
-            match dir {
-                CircDirection::Inward if pos.ring > 0 => CircCellPosIter::once(
-                    pos.ring - 1,
-                    if ring_cells_n > last_ring_cells_n {
-                        let self_inner_ratio = ring_cells_n / last_ring_cells_n;
-                        pos.cell / self_inner_ratio
-                    } else {
-                        debug_assert!(last_ring_cells_n == ring_cells_n);
-                        pos.cell
-                    },
-                ),
-                CircDirection::Clockwise if pos.ring > 0 => {
-                    CircCellPosIter::once(pos.ring, (pos.cell + 1) % ring_cells_n)
-                }
-                CircDirection::Counterclockwise if pos.ring > 0 => {
-                    CircCellPosIter::once(pos.ring, (pos.cell + ring_cells_n - 1) % ring_cells_n)
-                }
-                CircDirection::Outward => {
-                    if let Some(next_ring_cells_n) = self.ring_cells_n(pos.ring + 1) {
-                        let outer_self_ratio = next_ring_cells_n / ring_cells_n;
-                        let cell_start = pos.cell * outer_self_ratio;
-                        CircCellPosIter::cell_range(
-                            pos.ring + 1,
-                            cell_start..(cell_start + outer_self_ratio),
-                        )
-                    } else {
-                        CircCellPosIter::empty()
-                    }
-                }
-                _ => CircCellPosIter::empty(),
-            }
-        } else {
-            CircCellPosIter::empty()
-        }
-    }
-
-    fn cell_mut(&mut self, pos: &CircPosition) -> Option<&mut CircCell> {
-        self.pos_to_ind(pos).and_then(|ind| self.cells.get_mut(ind))
-    }
-
-    fn cell(&self, pos: &CircPosition) -> Option<&CircCell> {
-        self.pos_to_ind(pos).and_then(|ind| self.cells.get(ind))
-    }
-
-    fn ring_cells_n(&self, ring: usize) -> Option<usize> {
-        self.ring_end_inds.get(ring).map(|ring_end| {
-            *ring_end
-                - ring
-                    .checked_sub(1)
-                    .map(|last_ring| self.ring_end_inds[last_ring])
-                    .unwrap_or(0)
-        })
-    }
-
-    fn pos_to_ind(&self, pos: &CircPosition) -> Option<usize> {
-        if pos.ring >= self.rings_n {
-            return None;
-        }
-
-        let ring_start = pos
-            .ring
-            .checked_sub(1)
-            .and_then(|last_ring| self.ring_end_inds.get(last_ring).copied())
-            .unwrap_or(0);
-        Some(ring_start + pos.cell).filter(|ind| *ind < self.ring_end_inds[pos.ring])
-    }
-
-    fn ind_to_pos(&self, ind: usize) -> Option<CircPosition> {
-        if ind >= self.cells.len() {
-            return None;
-        }
-
-        Some(match self.ring_end_inds.binary_search(&ind) {
-            Ok(last_ring) => CircPosition::new(last_ring + 1, ind - self.ring_end_inds[last_ring]),
-            Err(ring) => CircPosition::new(
-                ring,
-                ind - ring
-                    .checked_sub(1)
-                    .map(|last_ring| self.ring_end_inds[last_ring])
-                    .unwrap_or(0),
-            ),
-        })
-    }
-}
-
 impl Grid2d for CircGrid {
     fn cells_n(&self) -> usize {
         self.ring_end_inds.last().copied().unwrap_or(0)
@@ -293,6 +172,167 @@ impl Grid2d for CircGrid {
     }
 }
 
+impl LayerGrid for CircGrid {
+    fn layers_n(&self) -> usize {
+        self.rings_n
+    }
+
+    fn cells_n_at(&self, layer_ind: usize) -> usize {
+        self.ring_cells_n(layer_ind)
+    }
+
+    fn append_neighbors_upper_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
+        neighbors.extend(
+            self.neighbor_pos_iter(&(*pos).into(), CircDirection::Inward)
+                .map(Position2d::from),
+        );
+    }
+
+    fn append_neighbors_lower_layer(&self, pos: &Position2d, neighbors: &mut Vec<Position2d>) {
+        neighbors.extend(
+            self.neighbor_pos_iter(&(*pos).into(), CircDirection::Outward)
+                .map(Position2d::from),
+        );
+    }
+
+    fn last_neighbor_pos(&self, pos: &Position2d) -> Option<Position2d> {
+        self.neighbor_pos_iter(&(*pos).into(), CircDirection::Counterclockwise)
+            .next()
+            .map(Position2d::from)
+    }
+
+    fn next_neighbor_pos(&self, pos: &Position2d) -> Option<Position2d> {
+        self.neighbor_pos_iter(&(*pos).into(), CircDirection::Clockwise)
+            .next()
+            .map(Position2d::from)
+    }
+}
+
+impl CircGrid {
+    pub fn new(rings_n: usize) -> Self {
+        let (ring_end_inds, cells) = Self::make_rings(rings_n);
+        Self {
+            rings_n,
+            ring_end_inds,
+            cells,
+        }
+    }
+
+    fn make_rings(rings_n: usize) -> (Vec<usize>, Vec<CircCell>) {
+        let mut rings_end_ind = vec![1; rings_n];
+        // Calculate the number of cells in each ring.
+        for ring_ind in 1..rings_n {
+            let last_ring_cells_n = rings_end_ind[ring_ind - 1];
+            // Make the arc length of each cell is close to ring interval(1.0 / rings_n).
+            rings_end_ind[ring_ind] = last_ring_cells_n
+                * (2f32 * consts::PI * ring_ind as f32 / last_ring_cells_n as f32).round() as usize;
+        }
+        // Accumulate the number of cells before each ring.
+        for ring_ind in 1..rings_n {
+            rings_end_ind[ring_ind] += rings_end_ind[ring_ind - 1];
+        }
+
+        let cells = vec![CircCell::default(); rings_end_ind.last().copied().unwrap_or(0)];
+        (rings_end_ind, cells)
+    }
+
+    pub fn neighbor_pos_iter(&self, pos: &CircPosition, dir: CircDirection) -> CircCellPosIter {
+        if self.pos_to_ind(pos).is_some() {
+            let ring_cells_n = self.ring_cells_n(pos.ring);
+            let last_ring_cells_n = pos
+                .ring
+                .checked_sub(1)
+                .map(|last_ring| self.ring_cells_n(last_ring))
+                .unwrap_or(0);
+            match dir {
+                CircDirection::Inward if pos.ring > 0 => CircCellPosIter::once(
+                    pos.ring - 1,
+                    if ring_cells_n > last_ring_cells_n {
+                        let self_inner_ratio = ring_cells_n / last_ring_cells_n;
+                        pos.cell / self_inner_ratio
+                    } else {
+                        debug_assert!(last_ring_cells_n == ring_cells_n);
+                        pos.cell
+                    },
+                ),
+                CircDirection::Clockwise if pos.ring > 0 => {
+                    CircCellPosIter::once(pos.ring, (pos.cell + 1) % ring_cells_n)
+                }
+                CircDirection::Counterclockwise if pos.ring > 0 => {
+                    CircCellPosIter::once(pos.ring, (pos.cell + ring_cells_n - 1) % ring_cells_n)
+                }
+                CircDirection::Outward => {
+                    let next_ring_cells_n = self.ring_cells_n(pos.ring + 1);
+                    if next_ring_cells_n > 0 {
+                        let outer_self_ratio = next_ring_cells_n / ring_cells_n;
+                        let cell_start = pos.cell * outer_self_ratio;
+                        CircCellPosIter::cell_range(
+                            pos.ring + 1,
+                            cell_start..(cell_start + outer_self_ratio),
+                        )
+                    } else {
+                        CircCellPosIter::empty()
+                    }
+                }
+                _ => CircCellPosIter::empty(),
+            }
+        } else {
+            CircCellPosIter::empty()
+        }
+    }
+
+    fn cell_mut(&mut self, pos: &CircPosition) -> Option<&mut CircCell> {
+        self.pos_to_ind(pos).and_then(|ind| self.cells.get_mut(ind))
+    }
+
+    fn cell(&self, pos: &CircPosition) -> Option<&CircCell> {
+        self.pos_to_ind(pos).and_then(|ind| self.cells.get(ind))
+    }
+
+    fn ring_cells_n(&self, ring: usize) -> usize {
+        self.ring_end_inds
+            .get(ring)
+            .map(|ring_end| {
+                *ring_end
+                    - ring
+                        .checked_sub(1)
+                        .map(|last_ring| self.ring_end_inds[last_ring])
+                        .unwrap_or(0)
+            })
+            .unwrap_or(0)
+    }
+
+    fn pos_to_ind(&self, pos: &CircPosition) -> Option<usize> {
+        if pos.ring >= self.rings_n {
+            return None;
+        }
+
+        let ring_start = pos
+            .ring
+            .checked_sub(1)
+            .and_then(|last_ring| self.ring_end_inds.get(last_ring).copied())
+            .unwrap_or(0);
+        Some(ring_start + pos.cell).filter(|ind| *ind < self.ring_end_inds[pos.ring])
+    }
+
+    fn ind_to_pos(&self, ind: usize) -> Option<CircPosition> {
+        if ind >= self.cells.len() {
+            return None;
+        }
+
+        Some(match self.ring_end_inds.binary_search(&ind) {
+            Ok(last_ring) => CircPosition::new(last_ring + 1, ind - self.ring_end_inds[last_ring]),
+            Err(ring) => CircPosition::new(
+                ring,
+                ind - ring
+                    .checked_sub(1)
+                    .map(|last_ring| self.ring_end_inds[last_ring])
+                    .unwrap_or(0),
+            ),
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CircMaze {
     grid: CircGrid,
@@ -307,7 +347,7 @@ impl CircMaze {
         self.grid.rings_n
     }
 
-    pub fn ring_cells_n(&self, ring: usize) -> Option<usize> {
+    pub fn ring_cells_n(&self, ring: usize) -> usize {
         self.grid.ring_cells_n(ring)
     }
 
@@ -340,14 +380,14 @@ mod test {
     #[test]
     fn test_grid_ring_cells_n() {
         let grid = CircGrid::new(7);
-        assert_eq!(grid.ring_cells_n(0), Some(1));
-        assert_eq!(grid.ring_cells_n(1), Some(6));
-        assert_eq!(grid.ring_cells_n(2), Some(12));
-        assert_eq!(grid.ring_cells_n(3), Some(24));
-        assert_eq!(grid.ring_cells_n(4), Some(24));
-        assert_eq!(grid.ring_cells_n(5), Some(24));
-        assert_eq!(grid.ring_cells_n(6), Some(48));
-        assert_eq!(grid.ring_cells_n(7), None);
+        assert_eq!(grid.ring_cells_n(0), 1);
+        assert_eq!(grid.ring_cells_n(1), 6);
+        assert_eq!(grid.ring_cells_n(2), 12);
+        assert_eq!(grid.ring_cells_n(3), 24);
+        assert_eq!(grid.ring_cells_n(4), 24);
+        assert_eq!(grid.ring_cells_n(5), 24);
+        assert_eq!(grid.ring_cells_n(6), 48);
+        assert_eq!(grid.ring_cells_n(7), 0);
     }
 
     #[test]

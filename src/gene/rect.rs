@@ -3,16 +3,45 @@ use rand::Rng;
 
 use crate::maze::rect::{RectDirection, RectGrid, RectMaze, RectPosition};
 
-use super::Maze2dGenerator;
+use super::{LayerMazeGenerator, Maze2dGenerator};
 
 pub trait RectMazeGenerator {
     fn generate(&self, grid: RectGrid) -> RectMaze;
 }
 
-impl<T: Maze2dGenerator> RectMazeGenerator for T {
+#[derive(Debug)]
+pub struct RectMaze2dGenerator<G: Maze2dGenerator> {
+    generator: G,
+}
+
+impl<G: Maze2dGenerator> RectMazeGenerator for RectMaze2dGenerator<G> {
     fn generate(&self, mut grid: RectGrid) -> RectMaze {
-        self.generate_2d(&mut grid);
+        self.generator.generate_2d(&mut grid);
         RectMaze::new(grid)
+    }
+}
+
+impl<G: Maze2dGenerator> RectMaze2dGenerator<G> {
+    pub fn new(generator: G) -> Self {
+        Self { generator }
+    }
+}
+
+#[derive(Debug)]
+pub struct RectLayzerMazeGenerator<G: LayerMazeGenerator> {
+    generator: G,
+}
+
+impl<G: LayerMazeGenerator> RectMazeGenerator for RectLayzerMazeGenerator<G> {
+    fn generate(&self, mut grid: RectGrid) -> RectMaze {
+        self.generator.generate_layer(&mut grid);
+        RectMaze::new(grid)
+    }
+}
+
+impl<G: LayerMazeGenerator> RectLayzerMazeGenerator<G> {
+    pub fn new(generator: G) -> Self {
+        Self { generator }
     }
 }
 
