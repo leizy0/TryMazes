@@ -10,8 +10,8 @@ use try_mazes::{
         HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
         RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
         rect::{
-            BTreeMazeGenerator, DiagonalDirection, RectLayzerMazeGenerator, RectMaze2dGenerator,
-            RectMazeGenerator, SideWinderMazeGenerator,
+            BTreeMazeGenerator, DiagonalDirection, RectLayerMazeGenerator, RectMaze2dGenerator,
+            RectMazeGenerator, RecursiveDivisionMazeGenerator, SideWinderMazeGenerator,
         },
     },
     maze::{
@@ -165,6 +165,9 @@ struct RectMazeGenAlgorithm {
     /// Using Eller's algorithm
     #[arg(long)]
     eller: bool,
+    /// Using recursive division algorithm
+    #[arg(long)]
+    recursive_division: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -283,7 +286,7 @@ fn make_generator_no_mask(input: &RectMazeInputArgs) -> Box<dyn RectMazeGenerato
             growing_tree: true, ..
         } => Box::new(RectMaze2dGenerator::new(GrowingTreeMazeGenerator)),
         RectMazeGenAlgorithm { eller: true, .. } => {
-            Box::new(RectLayzerMazeGenerator::new(EllerMazeGenerator))
+            Box::new(RectLayerMazeGenerator::new(EllerMazeGenerator))
         }
         RectMazeGenAlgorithm { btree: true, .. } => {
             Box::new(BTreeMazeGenerator::new(input.con_dir.unwrap()))
@@ -291,6 +294,10 @@ fn make_generator_no_mask(input: &RectMazeInputArgs) -> Box<dyn RectMazeGenerato
         RectMazeGenAlgorithm {
             sidewinder: true, ..
         } => Box::new(SideWinderMazeGenerator::new(input.con_dir.unwrap())),
+        RectMazeGenAlgorithm {
+            recursive_division: true,
+            ..
+        } => Box::new(RecursiveDivisionMazeGenerator),
         other_algorithm => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm({:?}), should be refused by clap.",
             other_algorithm

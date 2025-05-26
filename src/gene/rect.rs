@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use clap::ValueEnum;
 use rand::Rng;
 
@@ -38,18 +40,18 @@ impl<G: Maze2dGenerator> RectMaze2dGenerator<G> {
 }
 
 #[derive(Debug)]
-pub struct RectLayzerMazeGenerator<G: LayerMazeGenerator> {
+pub struct RectLayerMazeGenerator<G: LayerMazeGenerator> {
     generator: G,
 }
 
-impl<G: LayerMazeGenerator> RectMazeGenerator<NoMask> for RectLayzerMazeGenerator<G> {
+impl<G: LayerMazeGenerator> RectMazeGenerator<NoMask> for RectLayerMazeGenerator<G> {
     fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
         self.generator.generate_layer(&mut grid);
         RectMaze::NoMask(grid)
     }
 }
 
-impl<G: LayerMazeGenerator> RectLayzerMazeGenerator<G> {
+impl<G: LayerMazeGenerator> RectLayerMazeGenerator<G> {
     pub fn new(generator: G) -> Self {
         Self { generator }
     }
@@ -161,5 +163,84 @@ impl RectMazeGenerator<NoMask> for SideWinderMazeGenerator {
             }
         }
         RectMaze::NoMask(grid)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RecursiveDivisionMazeGenerator;
+
+impl RectMazeGenerator<NoMask> for RecursiveDivisionMazeGenerator {
+    fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
+        let (width, height) = grid.size();
+        let mut rng = rand::rng();
+        self.divide(&mut grid, 0..height, 0..width, &mut rng);
+        RectMaze::NoMask(grid)
+    }
+}
+
+impl RecursiveDivisionMazeGenerator {
+    fn divide(
+        &self,
+        grid: &mut RectGrid<NoMask>,
+        row_range: Range<usize>,
+        col_range: Range<usize>,
+        rng: &mut impl Rng,
+    ) {
+        let rows_n = row_range.len();
+        let cols_n = col_range.len();
+        match (rows_n, cols_n) {
+            (1, cols_n) if cols_n > 1 => {
+                for pos in col_range
+                    .map(|col| RectPosition::new(row_range.start, col))
+                    .skip(1)
+                {
+                    grid.connect_to(&pos, RectDirection::West);
+                }
+                return;
+            }
+            (rows_n, 1) if rows_n > 1 => {
+                for pos in row_range
+                    .map(|row| RectPosition::new(row, col_range.start))
+                    .skip(1)
+                {
+                    grid.connect_to(&pos, RectDirection::North);
+                }
+                return;
+            }
+            (0, _) | (_, 0) => return,
+            _ => (),
+        }
+
+        if rows_n > cols_n {
+            // Divide horizontally
+            let upper_last_row = row_range.start + rng.random_range(0..rows_n - 1);
+            let break_col = rng.random_range(col_range.clone());
+            grid.connect_to(
+                &RectPosition::new(upper_last_row, break_col),
+                RectDirection::South,
+            );
+            self.divide(
+                grid,
+                row_range.start..upper_last_row + 1,
+                col_range.clone(),
+                rng,
+            );
+            self.divide(grid, (upper_last_row + 1)..row_range.end, col_range, rng);
+        } else {
+            // Divide vertically
+            let left_last_col = col_range.start + rng.random_range(0..cols_n - 1);
+            let break_row = rng.random_range(row_range.clone());
+            grid.connect_to(
+                &RectPosition::new(break_row, left_last_col),
+                RectDirection::East,
+            );
+            self.divide(
+                grid,
+                row_range.clone(),
+                col_range.start..left_last_col + 1,
+                rng,
+            );
+            self.divide(grid, row_range, (left_last_col + 1)..col_range.end, rng);
+        }
     }
 }
