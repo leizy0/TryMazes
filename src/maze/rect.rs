@@ -11,6 +11,7 @@ use std::{
 use anyhow::Error as AnyError;
 use image::{GenericImageView, ImageReader, Rgba};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::show::rect::{AsciiBoxCharset, RectMazeCmdDisplay};
@@ -111,7 +112,7 @@ impl RectPosition {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RectMask {
     width: usize,
     height: usize,
@@ -244,13 +245,15 @@ impl RectMask {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct RectCell {
+    #[serde(rename = "n")]
     is_connected_to_north: bool,
+    #[serde(rename = "e")]
     is_connected_to_east: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RectGrid<M: MaskType>(GeneralRectGrid<RectCell>, PhantomData<M>);
 
 impl<M: MaskType + Clone> Grid2d for RectGrid<M> {
@@ -390,7 +393,7 @@ impl<M: MaskType> RectGrid<M> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RectMaze {
     NoMask(RectGrid<NoMask>),
     WithMask(RectGrid<WithMask>),

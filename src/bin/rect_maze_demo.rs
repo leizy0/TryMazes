@@ -1,7 +1,12 @@
-use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufReader, Write},
+    path::PathBuf,
+};
 
 use anyhow::Error as AnyError;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, command};
 
 use try_mazes::{
     cli::Error,
@@ -30,87 +35,111 @@ const DEF_CELL_WIDTH: usize = 50;
 fn main() -> Result<(), AnyError> {
     let maze_input = RectMazeInputArgs::parse();
     let maze = match &maze_input.action {
-        MazeAction::Show(ShowArgs { shape, .. }) | MazeAction::Save(SaveArgs { shape, .. }) => {
-            match shape {
-                MazeShape::Size(MazeSize { width, height }) => {
-                    let grid = RectGrid::<NoMask>::new(*width, *height);
-                    let generator = make_generator_no_mask(&maze_input);
-                    generator.generate(grid)
-                }
-                MazeShape::Mask(mask_info) => {
-                    let grid = match mask_info {
-                        MazeMaskInfo {
-                            text: true,
-                            path: Some(mask_path),
-                            ..
-                        } => RectGrid::<WithMask>::new(&RectMask::try_from_text_file(mask_path)?),
-                        MazeMaskInfo {
-                            image: true,
-                            path: Some(mask_path),
-                            ..
-                        } => RectGrid::<WithMask>::new(&RectMask::try_from_image_file(mask_path)?),
-                        other_shape => unreachable!(
-                            "Given invalid shape information({:?}), should be refused by clap.",
-                            other_shape
-                        ),
-                    };
-
-                    let generator = make_generator_with_mask(&maze_input)?;
-                    generator.generate(grid)
-                }
+        DemoAction::Create(create_args) => match &create_args.shape {
+            RectMazeShape::Size(MazeSizeArgs { width, height, .. }) => {
+                let grid = RectGrid::<NoMask>::new(*width, *height);
+                let generator = make_generator_no_mask(create_args);
+                generator.generate(grid)
             }
+            RectMazeShape::Mask(mask_args) => {
+                let grid = match mask_args {
+                    MazeMaskArgs {
+                        text: true,
+                        path: Some(mask_path),
+                        ..
+                    } => RectGrid::<WithMask>::new(&RectMask::try_from_text_file(mask_path)?),
+                    MazeMaskArgs {
+                        image: true,
+                        path: Some(mask_path),
+                        ..
+                    } => RectGrid::<WithMask>::new(&RectMask::try_from_image_file(mask_path)?),
+                    other_shape => unreachable!(
+                        "Given invalid shape information({:?}), should be refused by clap.",
+                        other_shape
+                    ),
+                };
+
+                let generator = make_generator_with_mask(create_args)?;
+                generator.generate(grid)
+            }
+        },
+        DemoAction::Load(RectMazeLoadArgs { load_path, .. }) => {
+            let file = File::open(load_path)?;
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader)?
         }
     };
-    // let grid = make_grid(&maze_input)?;
-    // let generator = make_generator(&maze_input)?;
-    // let maze = generator.generate(grid);
+
     match maze_input.action {
-        MazeAction::Show(ShowArgs { ascii: true, .. }) => {
-            println!("{}", RectMazeCmdDisplay(&maze, AsciiBoxCharset))
-        }
-        MazeAction::Show(ShowArgs { unicode: true, .. }) => {
-            println!("{}", RectMazeCmdDisplay(&maze, UnicodeBoxCharset))
-        }
-        MazeAction::Show(ShowArgs {
-            gui: true,
-            pic_settings,
+        DemoAction::Create(RectMazeCreateArgs {
+            shape: RectMazeShape::Mask(MazeMaskArgs { action, .. }),
             ..
-        }) => {
-            let painter =
-                RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
-            let picture = MazePicture::new(&painter);
-            picture.show()?
-        }
-        MazeAction::Save(SaveArgs {
-            ascii,
-            unicode,
-            path,
+        })
+        | DemoAction::Create(RectMazeCreateArgs {
+            shape: RectMazeShape::Size(MazeSizeArgs { action, .. }),
             ..
-        }) if ascii || unicode => {
-            let mut file = File::create(path)?;
-            let display: &dyn Display = if ascii {
-                &RectMazeCmdDisplay(&maze, AsciiBoxCharset)
-            } else {
-                &RectMazeCmdDisplay(&maze, UnicodeBoxCharset)
-            };
-            file.write_all(display.to_string().as_bytes())?;
-            file.flush()?;
-        }
-        MazeAction::Save(SaveArgs {
-            picture: true,
-            pic_format: Some(format),
-            pic_settings,
-            path,
-            ..
-        }) => {
-            let painter =
-                RectMazePainter::new(&maze, pic_settings.wall_thickness, pic_settings.cell_width);
-            let picture = MazePicture::new(&painter);
-            picture.save(path, format)?
-        }
-        _ => unreachable!(
-            "Given unknown action or missing arguments of action, should be checked by clap."
-        ),
+        })
+        | DemoAction::Load(RectMazeLoadArgs { action, .. }) => match action {
+            RectMazeAction::Show(ShowArgs { ascii: true, .. }) => {
+                println!("{}", RectMazeCmdDisplay(&maze, AsciiBoxCharset))
+            }
+            RectMazeAction::Show(ShowArgs { unicode: true, .. }) => {
+                println!("{}", RectMazeCmdDisplay(&maze, UnicodeBoxCharset))
+            }
+            RectMazeAction::Show(ShowArgs {
+                gui: true,
+                pic_settings,
+                ..
+            }) => {
+                let painter = RectMazePainter::new(
+                    &maze,
+                    pic_settings.wall_thickness,
+                    pic_settings.cell_width,
+                );
+                let picture = MazePicture::new(&painter);
+                picture.show()?
+            }
+            RectMazeAction::Save(SaveArgs {
+                ascii,
+                unicode,
+                path,
+                ..
+            }) if ascii || unicode => {
+                let mut file = File::create(path)?;
+                let display: &dyn Display = if ascii {
+                    &RectMazeCmdDisplay(&maze, AsciiBoxCharset)
+                } else {
+                    &RectMazeCmdDisplay(&maze, UnicodeBoxCharset)
+                };
+                file.write_all(display.to_string().as_bytes())?;
+                file.flush()?;
+            }
+            RectMazeAction::Save(SaveArgs {
+                json: true, path, ..
+            }) => {
+                let mut file = File::create(path)?;
+                file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
+                file.flush()?;
+            }
+            RectMazeAction::Save(SaveArgs {
+                picture: true,
+                pic_format: Some(format),
+                pic_settings,
+                path,
+                ..
+            }) => {
+                let painter = RectMazePainter::new(
+                    &maze,
+                    pic_settings.wall_thickness,
+                    pic_settings.cell_width,
+                );
+                let picture = MazePicture::new(&painter);
+                picture.save(path, format)?
+            }
+            _ => unreachable!(
+                "Given unknown action or missing arguments of action, should be checked by clap."
+            ),
+        },
     }
 
     Ok(())
@@ -121,6 +150,27 @@ fn main() -> Result<(), AnyError> {
 #[command(about = "Demo of maze generation and display(on command line).", long_about = None)]
 #[command(flatten_help = true)]
 struct RectMazeInputArgs {
+    #[command(subcommand)]
+    action: DemoAction,
+}
+
+#[derive(Debug, Subcommand)]
+enum DemoAction {
+    Create(RectMazeCreateArgs),
+    Load(RectMazeLoadArgs),
+}
+
+#[derive(Debug, Args)]
+struct RectMazeLoadArgs {
+    /// Path to load rectangular maze(saved as json format before)
+    load_path: PathBuf,
+    /// What to do with loaded maze
+    #[command(subcommand)]
+    action: RectMazeAction,
+}
+
+#[derive(Debug, Args)]
+struct RectMazeCreateArgs {
     /// Generation algorithm
     #[command(flatten)]
     algorithm: RectMazeGenAlgorithm,
@@ -135,7 +185,7 @@ struct RectMazeInputArgs {
     room_max_cols_n: usize,
     /// What to do with generated maze
     #[command(subcommand)]
-    action: MazeAction,
+    shape: RectMazeShape,
 }
 
 #[derive(Debug, Clone, Copy, Args)]
@@ -177,14 +227,14 @@ struct RectMazeGenAlgorithm {
 }
 
 #[derive(Debug, Subcommand)]
-enum MazeAction {
+enum RectMazeAction {
     /// Show maze by chosen way
     Show(ShowArgs),
     /// Save maze by given settings
     Save(SaveArgs),
 }
 
-#[derive(Debug, Clone, Args)]
+#[derive(Debug, Args)]
 struct ShowArgs {
     /// Using ascii characters to display maze
     #[arg(long, group = "save category")]
@@ -198,9 +248,6 @@ struct ShowArgs {
     /// Settings to paint maze picture
     #[command(flatten)]
     pic_settings: PictureSettings,
-    /// Maze shape
-    #[command(subcommand)]
-    shape: MazeShape,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -211,6 +258,9 @@ struct SaveArgs {
     /// Using unicode box characters to paint maze
     #[arg(long, group = "save category")]
     unicode: bool,
+    /// Using json format to save maze
+    #[arg(long, group = "save category")]
+    json: bool,
     /// Using graphics to paint maze
     #[arg(long, group = "save category", requires = "picture format")]
     picture: bool,
@@ -223,9 +273,6 @@ struct SaveArgs {
     /// Settings to paint maze picture
     #[command(flatten)]
     pic_settings: PictureSettings,
-    /// Maze shape
-    #[command(subcommand)]
-    shape: MazeShape,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -238,22 +285,25 @@ struct PictureSettings {
     wall_thickness: usize,
 }
 
-#[derive(Debug, Clone, Subcommand)]
-enum MazeShape {
-    Size(MazeSize),
-    Mask(MazeMaskInfo),
+#[derive(Debug, Subcommand)]
+enum RectMazeShape {
+    Size(MazeSizeArgs),
+    Mask(MazeMaskArgs),
 }
 
-#[derive(Debug, Clone, Copy, Args)]
-struct MazeSize {
+#[derive(Debug, Args)]
+struct MazeSizeArgs {
     /// Width of maze
     width: usize,
     /// Height of maze
     height: usize,
+    /// Action to do with maze
+    #[command(subcommand)]
+    action: RectMazeAction,
 }
 
-#[derive(Debug, Clone, Args)]
-struct MazeMaskInfo {
+#[derive(Debug, Args)]
+struct MazeMaskArgs {
     /// Mask given in text
     #[arg(long, group = "mask category", requires = "mask info")]
     text: bool,
@@ -263,9 +313,12 @@ struct MazeMaskInfo {
     /// Mask file path
     #[arg(long = "mask-path", group = "mask info")]
     path: Option<PathBuf>,
+    /// Action to do with maze
+    #[command(subcommand)]
+    action: RectMazeAction,
 }
 
-fn make_generator_no_mask(input: &RectMazeInputArgs) -> Box<dyn RectMazeGenerator<NoMask>> {
+fn make_generator_no_mask(input: &RectMazeCreateArgs) -> Box<dyn RectMazeGenerator<NoMask>> {
     match input.algorithm {
         RectMazeGenAlgorithm {
             aldous_broder: true,
@@ -315,7 +368,7 @@ fn make_generator_no_mask(input: &RectMazeInputArgs) -> Box<dyn RectMazeGenerato
 }
 
 fn make_generator_with_mask(
-    input: &RectMazeInputArgs,
+    input: &RectMazeCreateArgs,
 ) -> Result<Box<dyn RectMazeGenerator<WithMask>>, AnyError> {
     match input.algorithm {
         RectMazeGenAlgorithm {

@@ -2,6 +2,7 @@ use std::{collections::HashSet, fmt::Debug};
 
 use rand::{Rng, seq::IteratorRandom};
 use rect::RectMask;
+use serde::{Deserialize, Serialize};
 
 pub mod circ;
 pub mod hexa;
@@ -57,7 +58,7 @@ impl<T: Default> DefaultInRectGrid for T {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralRectGrid<C: DefaultInRectGrid + Debug + Clone> {
     width: usize,
     height: usize,
