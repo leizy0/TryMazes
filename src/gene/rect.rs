@@ -167,7 +167,10 @@ impl RectMazeGenerator<NoMask> for SideWinderMazeGenerator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RecursiveDivisionMazeGenerator;
+pub struct RecursiveDivisionMazeGenerator {
+    room_max_cols_n: usize,
+    room_max_rows_n: usize,
+}
 
 impl RectMazeGenerator<NoMask> for RecursiveDivisionMazeGenerator {
     fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
@@ -179,6 +182,13 @@ impl RectMazeGenerator<NoMask> for RecursiveDivisionMazeGenerator {
 }
 
 impl RecursiveDivisionMazeGenerator {
+    pub fn new(room_max_rows_n: usize, room_max_cols_n: usize) -> Self {
+        Self {
+            room_max_cols_n,
+            room_max_rows_n,
+        }
+    }
+
     fn divide(
         &self,
         grid: &mut RectGrid<NoMask>,
@@ -188,27 +198,9 @@ impl RecursiveDivisionMazeGenerator {
     ) {
         let rows_n = row_range.len();
         let cols_n = col_range.len();
-        match (rows_n, cols_n) {
-            (1, cols_n) if cols_n > 1 => {
-                for pos in col_range
-                    .map(|col| RectPosition::new(row_range.start, col))
-                    .skip(1)
-                {
-                    grid.connect_to(&pos, RectDirection::West);
-                }
-                return;
-            }
-            (rows_n, 1) if rows_n > 1 => {
-                for pos in row_range
-                    .map(|row| RectPosition::new(row, col_range.start))
-                    .skip(1)
-                {
-                    grid.connect_to(&pos, RectDirection::North);
-                }
-                return;
-            }
-            (0, _) | (_, 0) => return,
-            _ => (),
+        if self.is_room(row_range.clone(), col_range.clone()) {
+            Self::connect_all(grid, row_range.clone(), col_range.clone());
+            return;
         }
 
         if rows_n > cols_n {
@@ -241,6 +233,35 @@ impl RecursiveDivisionMazeGenerator {
                 rng,
             );
             self.divide(grid, row_range, (left_last_col + 1)..col_range.end, rng);
+        }
+    }
+
+    fn is_room(&self, row_range: Range<usize>, col_range: Range<usize>) -> bool {
+        let rows_n = row_range.len();
+        let cols_n = col_range.len();
+        rows_n <= 1
+            || cols_n <= 1
+            || (rows_n <= self.room_max_rows_n && cols_n <= self.room_max_cols_n)
+    }
+
+    fn connect_all(grid: &mut RectGrid<NoMask>, row_range: Range<usize>, col_range: Range<usize>) {
+        let Some(end_row) = row_range.clone().last() else {
+            return;
+        };
+        let Some(end_col) = col_range.clone().last() else {
+            return;
+        };
+        for row in row_range {
+            for col in col_range.clone() {
+                let pos = RectPosition::new(row, col);
+                if row != end_row {
+                    grid.connect_to(&pos, RectDirection::South);
+                }
+
+                if col != end_col {
+                    grid.connect_to(&pos, RectDirection::East);
+                }
+            }
         }
     }
 }

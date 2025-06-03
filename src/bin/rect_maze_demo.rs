@@ -127,6 +127,12 @@ struct RectMazeInputArgs {
     /// Candidate directions to connect
     #[arg(short, long, group = "connect direction")]
     con_dir: Option<DiagonalDirection>,
+    /// Max rows number of room, used by recursive division algorithm
+    #[arg(long, default_value_t = 1)]
+    room_max_rows_n: usize,
+    /// Max columns number of room, used by recursive division algorithm
+    #[arg(long, default_value_t = 1)]
+    room_max_cols_n: usize,
     /// What to do with generated maze
     #[command(subcommand)]
     action: MazeAction,
@@ -297,7 +303,10 @@ fn make_generator_no_mask(input: &RectMazeInputArgs) -> Box<dyn RectMazeGenerato
         RectMazeGenAlgorithm {
             recursive_division: true,
             ..
-        } => Box::new(RecursiveDivisionMazeGenerator),
+        } => Box::new(RecursiveDivisionMazeGenerator::new(
+            input.room_max_rows_n,
+            input.room_max_cols_n,
+        )),
         other_algorithm => unreachable!(
             "Given unknown algorithm or missing arguments of algorithm({:?}), should be refused by clap.",
             other_algorithm
