@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use serde::{Deserialize, Serialize};
+
 use super::{
     GeneralRectGrid, Grid2d, LayerGrid, MaskType, NoMask, Position2d, WithMask, rect::RectMask,
 };
@@ -84,14 +86,17 @@ impl HexaPosition {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
 struct HexaCell {
+    #[serde(rename = "n")]
     is_connected_to_north: bool,
+    #[serde(rename = "nw")]
     is_connected_to_northwest: bool,
+    #[serde(rename = "sw")]
     is_connected_to_southwest: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HexaGrid<M: MaskType>(GeneralRectGrid<HexaCell>, PhantomData<M>);
 
 impl<M: MaskType> Grid2d for HexaGrid<M> {
@@ -210,7 +215,7 @@ impl<M: MaskType> HexaGrid<M> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum HexaMaze {
     NoMask(HexaGrid<NoMask>),
     WithMask(HexaGrid<WithMask>),

@@ -1,7 +1,12 @@
+use std::{
+    fs::File,
+    io::{BufReader, Write},
+};
+
 use anyhow::Error as AnyError;
-use clap::{Args, Parser};
+use clap::{Args, Parser, Subcommand};
 use try_mazes::{
-    cli::{Error, GeneralRectMazeShape, MazeAction},
+    cli::{Error, GeneralMazeAction, GeneralMazeLoadArgs, GeneralRectMazeShape},
     gene::{
         AldousBroderMazeGenerator, EllerMazeGenerator, GrowingTreeMazeGenerator,
         HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
@@ -17,38 +22,69 @@ const DEF_WALL_THICKNESS: u16 = 5;
 
 fn main() -> Result<(), AnyError> {
     let maze_input = HexaMazeInputArgs::parse();
-    let maze = match &maze_input.shape {
-        GeneralRectMazeShape::Size { width, height, .. } => {
-            let grid = HexaGrid::<NoMask>::new(*width, *height);
-            let generator = make_generator_no_mask(&maze_input.algorithm);
-            generator.generate(grid)
-        }
-        mask_shape => {
-            let grid = match mask_shape {
-                GeneralRectMazeShape::Mask {
-                    text: true, path, ..
-                } => HexaGrid::<WithMask>::new(&RectMask::try_from_text_file(path)?),
-                GeneralRectMazeShape::Mask {
-                    image: true, path, ..
-                } => HexaGrid::<WithMask>::new(&RectMask::try_from_image_file(path)?),
-                other_shape => unreachable!(
-                    "Invalid maze shape({:?}), should be refused by clap.",
-                    other_shape
-                ),
-            };
-            let generator = make_generator_with_mask(&maze_input.algorithm)?;
-            generator.generate(grid)
+    let maze = match &maze_input.action {
+        DemoAction::Create(HexaMazeCreateArgs {
+            algorithm, shape, ..
+        }) => match shape {
+            GeneralRectMazeShape::Size { width, height, .. } => {
+                let grid = HexaGrid::<NoMask>::new(*width, *height);
+                let generator = make_generator_no_mask(algorithm);
+                generator.generate(grid)
+            }
+            mask_shape => {
+                let grid = match mask_shape {
+                    GeneralRectMazeShape::Mask {
+                        text: true, path, ..
+                    } => HexaGrid::<WithMask>::new(&RectMask::try_from_text_file(path)?),
+                    GeneralRectMazeShape::Mask {
+                        image: true, path, ..
+                    } => HexaGrid::<WithMask>::new(&RectMask::try_from_image_file(path)?),
+                    other_shape => unreachable!(
+                        "Invalid maze shape({:?}), should be refused by clap.",
+                        other_shape
+                    ),
+                };
+                let generator = make_generator_with_mask(algorithm)?;
+                generator.generate(grid)
+            }
+        },
+        DemoAction::Load(GeneralMazeLoadArgs { load_path, .. }) => {
+            let file = File::open(load_path)?;
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader)?
         }
     };
     let painter = HexaMazePainter::new(&maze, maze_input.cell_height, maze_input.wall_thickness);
     let picture = MazePicture::new(&painter);
-    match &maze_input.shape {
-        GeneralRectMazeShape::Size { action, .. } | GeneralRectMazeShape::Mask { action, .. } => {
-            match action {
-                MazeAction::Show => picture.show()?,
-                MazeAction::Save { path, format } => picture.save(path, *format)?,
+    match &maze_input.action {
+        DemoAction::Create(HexaMazeCreateArgs {
+            shape: GeneralRectMazeShape::Size { action, .. },
+            ..
+        })
+        | DemoAction::Create(HexaMazeCreateArgs {
+            shape: GeneralRectMazeShape::Mask { action, .. },
+            ..
+        })
+        | DemoAction::Load(GeneralMazeLoadArgs { action, .. }) => match action {
+            GeneralMazeAction::Show => picture.show()?,
+            GeneralMazeAction::Save {
+                picture: true,
+                path,
+                format: Some(pic_format),
+                ..
+            } => picture.save(path, *pic_format)?,
+            GeneralMazeAction::Save {
+                json: true, path, ..
+            } => {
+                let mut file = File::create(path)?;
+                file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
+                file.flush()?;
             }
-        }
+            other_action => unreachable!(
+                "Invalid maze action({:?}), should be refused by clap.",
+                other_action
+            ),
+        },
     }
 
     Ok(())
@@ -57,15 +93,28 @@ fn main() -> Result<(), AnyError> {
 #[derive(Debug, Clone, Parser)]
 #[command(flatten_help = true)]
 struct HexaMazeInputArgs {
-    // Maze generation algorithm
-    #[command(flatten)]
-    algorithm: HexaMazeAlgorithm,
     /// Height of cell space
     #[arg(short, long, default_value_t = DEF_CELL_WIDTH)]
     cell_height: u16,
     /// Thickness of the maze wall(the stroke)
     #[arg(short, long, default_value_t = DEF_WALL_THICKNESS)]
     wall_thickness: u16,
+    /// What to do in demo
+    #[command(subcommand)]
+    action: DemoAction,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum DemoAction {
+    Create(HexaMazeCreateArgs),
+    Load(GeneralMazeLoadArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+struct HexaMazeCreateArgs {
+    // Maze generation algorithm
+    #[command(flatten)]
+    algorithm: HexaMazeAlgorithm,
     /// Maze shape, by size or from mask
     #[command(subcommand)]
     shape: GeneralRectMazeShape,
@@ -73,7 +122,7 @@ struct HexaMazeInputArgs {
 
 #[derive(Debug, Clone, Args)]
 #[group(required = true, multiple = false)]
-pub struct HexaMazeAlgorithm {
+struct HexaMazeAlgorithm {
     /// Using Aldous-Broder algorithm
     #[arg(long)]
     pub aldous_broder: bool,

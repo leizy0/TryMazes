@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::{DefaultInRectGrid, GeneralRectGrid, Grid2d, Position2d, rect::RectMask};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -68,13 +70,18 @@ impl TriPosition {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum TriCell {
+    #[serde(rename = "u")]
     AngelUp {
+        #[serde(rename = "nw")]
         is_connected_to_northwest: bool,
+        #[serde(rename = "s")]
         is_connected_to_south: bool,
     },
+    #[serde(rename = "d")]
     AngelDown {
+        #[serde(rename = "sw")]
         is_connected_to_southwest: bool,
     },
 }
@@ -94,7 +101,7 @@ impl DefaultInRectGrid for TriCell {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriGrid(GeneralRectGrid<TriCell>);
 
 impl Grid2d for TriGrid {
@@ -212,6 +219,7 @@ impl TriGrid {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriMaze(TriGrid);
 
 impl TriMaze {

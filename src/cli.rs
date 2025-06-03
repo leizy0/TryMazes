@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use thiserror::Error;
 
 use crate::show::SavePictureFormat;
@@ -9,6 +9,15 @@ use crate::show::SavePictureFormat;
 pub enum Error {
     #[error("Algorithm {0} doesn't support mask.")]
     NotSupportMask(String),
+}
+
+#[derive(Debug, Clone, Args)]
+pub struct GeneralMazeLoadArgs {
+    /// Path to load maze(saved as json format before)
+    pub load_path: PathBuf,
+    /// What to do with loaded maze
+    #[command(subcommand)]
+    pub action: GeneralMazeAction,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -20,7 +29,7 @@ pub enum GeneralRectMazeShape {
         height: usize,
         /// Action to do with maze,
         #[command(subcommand)]
-        action: MazeAction,
+        action: GeneralMazeAction,
     },
     Mask {
         /// Using text mask(x or X is for not cell, other characters are for cell)
@@ -33,19 +42,26 @@ pub enum GeneralRectMazeShape {
         path: PathBuf,
         /// Action to do with maze,
         #[command(subcommand)]
-        action: MazeAction,
+        action: GeneralMazeAction,
     },
 }
 
 #[derive(Debug, Clone, Subcommand)]
-pub enum MazeAction {
+pub enum GeneralMazeAction {
     /// Show maze picture in GUI
     Show,
     /// Show maze picture in file
     Save {
+        /// Save to a picture
+        #[arg(long, group = "save category", requires = "picture format")]
+        picture: bool,
+        /// Save to json
+        #[arg(long, group = "save category")]
+        json: bool,
         /// Path to save maze picture
         path: PathBuf,
         /// Format to save maze picture
-        format: SavePictureFormat,
+        #[arg(short, long, group = "picture format")]
+        format: Option<SavePictureFormat>,
     },
 }

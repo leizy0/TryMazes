@@ -1,7 +1,12 @@
+use std::{
+    fs::File,
+    io::{BufReader, Write},
+};
+
 use anyhow::Error as AnyError;
-use clap::{Args, Parser, arg};
+use clap::{Args, Parser, Subcommand, arg};
 use try_mazes::{
-    cli::{GeneralRectMazeShape, MazeAction},
+    cli::{GeneralMazeAction, GeneralMazeLoadArgs, GeneralRectMazeShape},
     gene::{
         AldousBroderMazeGenerator, GrowingTreeMazeGenerator, HuntAndKillMazeGenerator,
         KruskalMazeGenerator, PrimMazeGenerator, RecursiveBacktrackerMazeGenerator,
@@ -16,53 +21,85 @@ const DEF_WALL_THICKNESS: u16 = 5;
 
 fn main() -> Result<(), AnyError> {
     let maze_input = TriMazeInputArgs::parse();
-    let grid = match &maze_input.shape {
-        GeneralRectMazeShape::Size { width, height, .. } => TriGrid::new(*width, *height),
-        GeneralRectMazeShape::Mask {
-            text: true, path, ..
-        } => TriGrid::with_mask(&RectMask::try_from_text_file(path)?),
-        GeneralRectMazeShape::Mask {
-            image: true, path, ..
-        } => TriGrid::with_mask(&RectMask::try_from_image_file(path)?),
-        other_shape => unreachable!(
-            "Invalid maze shape({:?}), should be refused by clap.",
-            other_shape
-        ),
+    let maze = match &maze_input.action {
+        DemoAction::Create(TriMazeCreateArgs { algorithm, shape }) => {
+            let grid = match shape {
+                GeneralRectMazeShape::Size { width, height, .. } => TriGrid::new(*width, *height),
+                GeneralRectMazeShape::Mask {
+                    text: true, path, ..
+                } => TriGrid::with_mask(&RectMask::try_from_text_file(path)?),
+                GeneralRectMazeShape::Mask {
+                    image: true, path, ..
+                } => TriGrid::with_mask(&RectMask::try_from_image_file(path)?),
+                other_shape => unreachable!(
+                    "Invalid maze shape({:?}), should be refused by clap.",
+                    other_shape
+                ),
+            };
+            let generator: &dyn TriMazeGenerator = match algorithm {
+                TriMazeAlgorithm {
+                    aldous_broder: true,
+                    ..
+                } => &AldousBroderMazeGenerator,
+                TriMazeAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
+                TriMazeAlgorithm {
+                    hunt_and_kill: true,
+                    ..
+                } => &HuntAndKillMazeGenerator,
+                TriMazeAlgorithm {
+                    recursive_backtracker: true,
+                    ..
+                } => &RecursiveBacktrackerMazeGenerator,
+                TriMazeAlgorithm { kruskal: true, .. } => &KruskalMazeGenerator,
+                TriMazeAlgorithm { prim: true, .. } => &PrimMazeGenerator,
+                TriMazeAlgorithm {
+                    growing_tree: true, ..
+                } => &GrowingTreeMazeGenerator,
+                other_algorithm => unreachable!(
+                    "Invalid algorithm({:?}), should be refused by clap.",
+                    other_algorithm
+                ),
+            };
+            generator.generate(grid)
+        }
+        DemoAction::Load(GeneralMazeLoadArgs { load_path, .. }) => {
+            let file = File::open(load_path)?;
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader)?
+        }
     };
-    let generator: &dyn TriMazeGenerator = match maze_input.algorithm {
-        TriMazeAlgorithm {
-            aldous_broder: true,
-            ..
-        } => &AldousBroderMazeGenerator,
-        TriMazeAlgorithm { wilson: true, .. } => &WilsonMazeGenerator,
-        TriMazeAlgorithm {
-            hunt_and_kill: true,
-            ..
-        } => &HuntAndKillMazeGenerator,
-        TriMazeAlgorithm {
-            recursive_backtracker: true,
-            ..
-        } => &RecursiveBacktrackerMazeGenerator,
-        TriMazeAlgorithm { kruskal: true, .. } => &KruskalMazeGenerator,
-        TriMazeAlgorithm { prim: true, .. } => &PrimMazeGenerator,
-        TriMazeAlgorithm {
-            growing_tree: true, ..
-        } => &GrowingTreeMazeGenerator,
-        other_algorithm => unreachable!(
-            "Invalid algorithm({:?}), should be refused by clap.",
-            other_algorithm
-        ),
-    };
-    let maze = generator.generate(grid);
+
     let painter = TriMazePainter::new(&maze, maze_input.cell_height, maze_input.wall_thickness);
     let picture = MazePicture::new(&painter);
-    match &maze_input.shape {
-        GeneralRectMazeShape::Size { action, .. } | GeneralRectMazeShape::Mask { action, .. } => {
-            match action {
-                MazeAction::Show => picture.show()?,
-                MazeAction::Save { path, format } => picture.save(path, *format)?,
+    match &maze_input.action {
+        DemoAction::Create(TriMazeCreateArgs {
+            shape: GeneralRectMazeShape::Size { action, .. },
+            ..
+        })
+        | DemoAction::Create(TriMazeCreateArgs {
+            shape: GeneralRectMazeShape::Mask { action, .. },
+            ..
+        })
+        | DemoAction::Load(GeneralMazeLoadArgs { action, .. }) => match action {
+            GeneralMazeAction::Show => picture.show()?,
+            GeneralMazeAction::Save {
+                picture: true,
+                path,
+                format: Some(pic_format),
+                ..
+            } => picture.save(path, *pic_format)?,
+            GeneralMazeAction::Save {
+                json: true, path, ..
+            } => {
+                let mut file = File::create(path)?;
+                file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
+                file.flush()?;
             }
-        }
+            other_action => unreachable!(
+                "Invalid maze action({:?}), should be refused by clap.",
+                other_action
+            ),
+        },
     }
 
     Ok(())
@@ -71,16 +108,29 @@ fn main() -> Result<(), AnyError> {
 #[derive(Debug, Clone, Parser)]
 #[command(flatten_help = true)]
 struct TriMazeInputArgs {
-    // Maze generation algorithm
-    #[command(flatten)]
-    algorithm: TriMazeAlgorithm,
     /// Height of cell space
     #[arg(short, long, default_value_t = DEF_TRI_CELL_HEIGHT)]
     cell_height: u16,
     /// Thickness of the maze wall(the stroke)
     #[arg(short, long, default_value_t = DEF_WALL_THICKNESS)]
     wall_thickness: u16,
-    /// Maze shape, by size or from mask
+    /// What to do in demo
+    #[command(subcommand)]
+    action: DemoAction,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum DemoAction {
+    Create(TriMazeCreateArgs),
+    Load(GeneralMazeLoadArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+struct TriMazeCreateArgs {
+    /// Maze generation algorithm
+    #[command(flatten)]
+    algorithm: TriMazeAlgorithm,
+    /// Specified maze shape
     #[command(subcommand)]
     shape: GeneralRectMazeShape,
 }

@@ -145,7 +145,7 @@ fn main() -> Result<(), AnyError> {
     Ok(())
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser)]
 #[command(name = "MazeDemo", version)]
 #[command(about = "Demo of maze generation and display(on command line).", long_about = None)]
 #[command(flatten_help = true)]
@@ -154,13 +154,13 @@ struct RectMazeInputArgs {
     action: DemoAction,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Subcommand)]
 enum DemoAction {
     Create(RectMazeCreateArgs),
     Load(RectMazeLoadArgs),
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 struct RectMazeLoadArgs {
     /// Path to load rectangular maze(saved as json format before)
     load_path: PathBuf,
@@ -169,7 +169,7 @@ struct RectMazeLoadArgs {
     action: RectMazeAction,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 struct RectMazeCreateArgs {
     /// Generation algorithm
     #[command(flatten)]
@@ -226,7 +226,7 @@ struct RectMazeGenAlgorithm {
     recursive_division: bool,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Subcommand)]
 enum RectMazeAction {
     /// Show maze by chosen way
     Show(ShowArgs),
@@ -234,7 +234,7 @@ enum RectMazeAction {
     Save(SaveArgs),
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 struct ShowArgs {
     /// Using ascii characters to display maze
     #[arg(long, group = "save category")]
@@ -285,13 +285,13 @@ struct PictureSettings {
     wall_thickness: usize,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, Subcommand)]
 enum RectMazeShape {
     Size(MazeSizeArgs),
     Mask(MazeMaskArgs),
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 struct MazeSizeArgs {
     /// Width of maze
     width: usize,
@@ -302,7 +302,7 @@ struct MazeSizeArgs {
     action: RectMazeAction,
 }
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 struct MazeMaskArgs {
     /// Mask given in text
     #[arg(long, group = "mask category", requires = "mask info")]

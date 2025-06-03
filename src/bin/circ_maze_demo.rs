@@ -1,7 +1,12 @@
+use std::{
+    fs::File,
+    io::{BufReader, Write},
+};
+
 use anyhow::Error as AnyError;
-use clap::{Args, Parser};
+use clap::{Args, Parser, Subcommand};
 use try_mazes::{
-    cli::MazeAction,
+    cli::{GeneralMazeAction, GeneralMazeLoadArgs},
     gene::{
         AldousBroderMazeGenerator, EllerMazeGenerator, GrowingTreeMazeGenerator,
         HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
@@ -16,42 +21,81 @@ const DEF_WALL_THICKNESS: usize = 5;
 const DEF_RING_INTERVAL_WIDTH: usize = 50;
 fn main() -> Result<(), AnyError> {
     let maze_input = CircMazeInputArgs::parse();
-    let grid = CircGrid::new(maze_input.rings_n);
-    let generator: &dyn CircMazeGenerator = match maze_input.algorithm {
-        CircMazeAlgorithm {
-            aldous_broder: true,
-            ..
-        } => &CircMaze2dGenerator::new(AldousBroderMazeGenerator),
-        CircMazeAlgorithm { wilson: true, .. } => &CircMaze2dGenerator::new(WilsonMazeGenerator),
-        CircMazeAlgorithm {
-            hunt_and_kill: true,
-            ..
-        } => &CircMaze2dGenerator::new(HuntAndKillMazeGenerator),
-        CircMazeAlgorithm {
-            recursive_backtracker: true,
-            ..
-        } => &CircMaze2dGenerator::new(RecursiveBacktrackerMazeGenerator),
-        CircMazeAlgorithm { kruskal: true, .. } => &CircMaze2dGenerator::new(KruskalMazeGenerator),
-        CircMazeAlgorithm { prim: true, .. } => &CircMaze2dGenerator::new(PrimMazeGenerator),
-        CircMazeAlgorithm {
-            growing_tree: true, ..
-        } => &CircMaze2dGenerator::new(GrowingTreeMazeGenerator),
-        CircMazeAlgorithm { eller: true, .. } => &CircLayerMazeGenerator::new(EllerMazeGenerator),
-        other_algorithm => unreachable!(
-            "Invalid circular maze algorithm({:?}), should be refused by clap.",
-            other_algorithm
-        ),
+    let maze = match &maze_input.action {
+        DemoAction::Create(CircMazeCreateArgs {
+            rings_n, algorithm, ..
+        }) => {
+            let grid = CircGrid::new(*rings_n);
+            let generator: &dyn CircMazeGenerator = match algorithm {
+                CircMazeAlgorithm {
+                    aldous_broder: true,
+                    ..
+                } => &CircMaze2dGenerator::new(AldousBroderMazeGenerator),
+                CircMazeAlgorithm { wilson: true, .. } => {
+                    &CircMaze2dGenerator::new(WilsonMazeGenerator)
+                }
+                CircMazeAlgorithm {
+                    hunt_and_kill: true,
+                    ..
+                } => &CircMaze2dGenerator::new(HuntAndKillMazeGenerator),
+                CircMazeAlgorithm {
+                    recursive_backtracker: true,
+                    ..
+                } => &CircMaze2dGenerator::new(RecursiveBacktrackerMazeGenerator),
+                CircMazeAlgorithm { kruskal: true, .. } => {
+                    &CircMaze2dGenerator::new(KruskalMazeGenerator)
+                }
+                CircMazeAlgorithm { prim: true, .. } => {
+                    &CircMaze2dGenerator::new(PrimMazeGenerator)
+                }
+                CircMazeAlgorithm {
+                    growing_tree: true, ..
+                } => &CircMaze2dGenerator::new(GrowingTreeMazeGenerator),
+                CircMazeAlgorithm { eller: true, .. } => {
+                    &CircLayerMazeGenerator::new(EllerMazeGenerator)
+                }
+                other_algorithm => unreachable!(
+                    "Invalid circular maze algorithm({:?}), should be refused by clap.",
+                    other_algorithm
+                ),
+            };
+            generator.generate(grid)
+        }
+        DemoAction::Load(GeneralMazeLoadArgs { load_path, .. }) => {
+            let file = File::open(load_path)?;
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader)?
+        }
     };
-    let maze = generator.generate(grid);
+
     let painter = CircMazePainter::new(
         &maze,
         maze_input.ring_interval_width,
         maze_input.wall_thickness,
     );
     let picture = MazePicture::new(&painter);
-    match maze_input.action {
-        MazeAction::Show => picture.show()?,
-        MazeAction::Save { path, format } => picture.save(path, format)?,
+    match &maze_input.action {
+        DemoAction::Create(CircMazeCreateArgs { action, .. })
+        | DemoAction::Load(GeneralMazeLoadArgs { action, .. }) => match action {
+            GeneralMazeAction::Show => picture.show()?,
+            GeneralMazeAction::Save {
+                picture: true,
+                path,
+                format: Some(pic_format),
+                ..
+            } => picture.save(path, *pic_format)?,
+            GeneralMazeAction::Save {
+                json: true, path, ..
+            } => {
+                let mut file = File::create(path)?;
+                file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
+                file.flush()?;
+            }
+            other_action => unreachable!(
+                "Invalid maze action({:?}), should be refused by clap.",
+                other_action
+            ),
+        },
     }
 
     Ok(())
@@ -60,12 +104,6 @@ fn main() -> Result<(), AnyError> {
 #[derive(Debug, Clone, Parser)]
 #[command(flatten_help = true)]
 struct CircMazeInputArgs {
-    /// Number of rings in maze
-    #[arg(short, long, value_name = "RING_NUMBER")]
-    rings_n: usize,
-    /// Algorithm used by generator
-    #[command(flatten)]
-    algorithm: CircMazeAlgorithm,
     /// Width of space between two adjacent rings along the radial direction
     #[arg(short = 'i', long, default_value_t = DEF_RING_INTERVAL_WIDTH)]
     ring_interval_width: usize,
@@ -74,7 +112,26 @@ struct CircMazeInputArgs {
     wall_thickness: usize,
     /// Action to do with generated maze
     #[command(subcommand)]
-    action: MazeAction,
+    action: DemoAction,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+enum DemoAction {
+    Create(CircMazeCreateArgs),
+    Load(GeneralMazeLoadArgs),
+}
+
+#[derive(Debug, Clone, Args)]
+struct CircMazeCreateArgs {
+    /// Number of rings in maze
+    #[arg(short, long, value_name = "RING_NUMBER")]
+    rings_n: usize,
+    /// Algorithm used by generator
+    #[command(flatten)]
+    algorithm: CircMazeAlgorithm,
+    /// What to do with circular maze
+    #[command(subcommand)]
+    action: GeneralMazeAction,
 }
 
 #[derive(Debug, Clone, Args)]

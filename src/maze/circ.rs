@@ -4,6 +4,7 @@ use std::{
 };
 
 use rand::seq::IteratorRandom;
+use serde::{Deserialize, Serialize};
 
 use super::{Grid2d, LayerGrid, Position2d};
 
@@ -54,9 +55,13 @@ impl CircPosition {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 struct CircCell {
+    #[serde(rename = "i")]
     pub is_connected_inward: bool,
+    #[serde(rename = "c")]
     pub is_connected_clockwise: bool,
 }
 
@@ -110,7 +115,7 @@ impl CircCellPosIter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CircGrid {
     rings_n: usize,
     ring_end_inds: Vec<usize>,
@@ -333,7 +338,7 @@ impl CircGrid {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CircMaze {
     grid: CircGrid,
 }
