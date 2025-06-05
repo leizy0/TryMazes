@@ -68,7 +68,10 @@ fn main() -> Result<(), AnyError> {
     match &maze_input.action {
         DemoAction::Create(CircMazeCreateArgs { action, .. })
         | DemoAction::Load(GeneralMazeLoadArgs { action, .. }) => match action {
-            GeneralMazeAction::Show => picture.show()?,
+            GeneralMazeAction::Show {
+                wnd_width,
+                wnd_height,
+            } => picture.show(*wnd_width, *wnd_height)?,
             GeneralMazeAction::Save {
                 picture: true,
                 path,

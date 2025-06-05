@@ -72,7 +72,10 @@ fn main() -> Result<(), AnyError> {
             ..
         })
         | DemoAction::Load(GeneralMazeLoadArgs { action, .. }) => match action {
-            GeneralMazeAction::Show => picture.show()?,
+            GeneralMazeAction::Show {
+                wnd_width,
+                wnd_height,
+            } => picture.show(*wnd_width, *wnd_height)?,
             GeneralMazeAction::Save {
                 picture: true,
                 path,

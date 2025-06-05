@@ -46,7 +46,7 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
         }
     }
 
-    pub fn show(&self) -> Result<(), AnyError> {
+    pub fn show(&self, wnd_width: usize, wnd_height: usize) -> Result<(), AnyError> {
         let image = self.surface()?.image_snapshot();
         let size = image.image_info().bounds().size();
         let mut pixels = vec![0u32; usize::try_from(size.width * size.height)?];
@@ -66,6 +66,8 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
             pixels.as_slice(),
             usize::try_from(size.width)?,
             usize::try_from(size.height)?,
+            wnd_width,
+            wnd_height,
         )?;
         Ok(())
     }
@@ -99,16 +101,16 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
         Ok(surface)
     }
 
-    fn show_pixels(pixels: &[u32], width: usize, height: usize) -> Result<(), AnyError> {
-        let (wnd_width, wnd_height) = if width > height {
-            (800, 600)
-        } else {
-            (600, 800)
-        };
-
+    fn show_pixels(
+        pixels: &[u32],
+        pic_width: usize,
+        pic_height: usize,
+        wnd_width: usize,
+        wnd_height: usize,
+    ) -> Result<(), AnyError> {
         let wnd_options = WindowOptions {
             resize: true,
-            scale_mode: if width > wnd_width || height > wnd_height {
+            scale_mode: if pic_width > wnd_width || pic_height > wnd_height {
                 ScaleMode::AspectRatioStretch
             } else {
                 ScaleMode::Center
@@ -116,7 +118,7 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
             ..Default::default()
         };
         let mut window = Window::new(
-            "Maze Demo - ESC to exit",
+            "Maze Show - ESC to exit",
             wnd_width,
             wnd_height,
             wnd_options,
@@ -127,7 +129,7 @@ impl<'a, MP: MazePaint> MazePicture<'a, MP> {
         window.set_target_fps(60);
 
         while window.is_open() && !window.is_key_down(Key::Escape) {
-            window.update_with_buffer(pixels, width, height)?;
+            window.update_with_buffer(pixels, pic_width, pic_height)?;
         }
 
         Ok(())

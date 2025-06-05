@@ -52,10 +52,20 @@ pub enum GeneralRectMazeShape {
     },
 }
 
+const DEF_SHOW_WND_WIDTH: usize = 800;
+const DEF_SHOW_WND_HEIGHT: usize = 600;
+
 #[derive(Debug, Clone, Subcommand)]
 pub enum GeneralMazeAction {
     /// Show maze picture in GUI
-    Show,
+    Show {
+        /// Width of window for showing maze
+        #[arg(long, default_value_t = DEF_SHOW_WND_WIDTH)]
+        wnd_width: usize,
+        /// Height of window for showing maze
+        #[arg(long, default_value_t = DEF_SHOW_WND_HEIGHT)]
+        wnd_height: usize,
+    },
     /// Show maze picture in file
     Save {
         /// Save to a picture

@@ -26,6 +26,8 @@ use try_mazes::{
 
 const DEF_WALL_THICKNESS: usize = 5;
 const DEF_CELL_WIDTH: usize = 50;
+const DEF_SHOW_WND_WIDTH: usize = 800;
+const DEF_SHOW_WND_HEIGHT: usize = 600;
 
 fn main() -> Result<(), AnyError> {
     let maze_input = RectMazeInputArgs::parse();
@@ -80,6 +82,8 @@ fn main() -> Result<(), AnyError> {
             RectMazeAction::Show(ShowArgs {
                 gui: true,
                 pic_settings,
+                gui_wnd_width,
+                gui_wnd_height,
                 ..
             }) => {
                 let painter = RectMazePainter::new(
@@ -88,7 +92,7 @@ fn main() -> Result<(), AnyError> {
                     pic_settings.cell_width,
                 );
                 let picture = MazePicture::new(&painter);
-                picture.show()?
+                picture.show(gui_wnd_width, gui_wnd_height)?
             }
             RectMazeAction::Save(SaveArgs {
                 ascii,
@@ -232,6 +236,12 @@ struct ShowArgs {
     /// Using GUI to display maze in graphics
     #[arg(long, group = "save category")]
     gui: bool,
+    /// Width of window for showing maze
+    #[arg(long, default_value_t = DEF_SHOW_WND_WIDTH)]
+    gui_wnd_width: usize,
+    /// Height of window for showing maze
+    #[arg(long, default_value_t = DEF_SHOW_WND_HEIGHT)]
+    gui_wnd_height: usize,
     /// Settings to paint maze picture
     #[command(flatten)]
     pic_settings: PictureSettings,
