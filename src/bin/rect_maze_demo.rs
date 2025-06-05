@@ -1,15 +1,10 @@
-use std::{
-    fmt::Display,
-    fs::File,
-    io::{BufReader, Write},
-    path::PathBuf,
-};
+use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 
 use anyhow::Error as AnyError;
 use clap::{Args, Parser, Subcommand, command};
 
 use try_mazes::{
-    cli::Error,
+    cli::{self, Error},
     gene::{
         AldousBroderMazeGenerator, EllerMazeGenerator, GrowingTreeMazeGenerator,
         HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
@@ -63,11 +58,7 @@ fn main() -> Result<(), AnyError> {
                 generator.generate(grid)
             }
         },
-        DemoAction::Load(RectMazeLoadArgs { load_path, .. }) => {
-            let file = File::open(load_path)?;
-            let reader = BufReader::new(file);
-            serde_json::from_reader(reader)?
-        }
+        DemoAction::Load(RectMazeLoadArgs { load_path, .. }) => cli::load_from_json(load_path)?,
     };
 
     match maze_input.action {
@@ -116,11 +107,7 @@ fn main() -> Result<(), AnyError> {
             }
             RectMazeAction::Save(SaveArgs {
                 json: true, path, ..
-            }) => {
-                let mut file = File::create(path)?;
-                file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
-                file.flush()?;
-            }
+            }) => cli::save_to_json(path, &maze)?,
             RectMazeAction::Save(SaveArgs {
                 picture: true,
                 pic_format: Some(format),

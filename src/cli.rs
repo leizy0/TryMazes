@@ -1,6 +1,12 @@
-use std::path::PathBuf;
+use std::{
+    fs::File,
+    io::{BufReader, Write},
+    path::{Path, PathBuf},
+};
 
+use anyhow::Error as AnyError;
 use clap::{Args, Subcommand};
+use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
 use crate::show::SavePictureFormat;
@@ -64,4 +70,18 @@ pub enum GeneralMazeAction {
         #[arg(short, long, group = "picture format")]
         format: Option<SavePictureFormat>,
     },
+}
+
+pub fn load_from_json<P: AsRef<Path>, M: DeserializeOwned>(path: P) -> Result<M, AnyError> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let maze = serde_json::from_reader(reader)?;
+    Ok(maze)
+}
+
+pub fn save_to_json<P: AsRef<Path>, M: Serialize>(path: P, maze: &M) -> Result<(), AnyError> {
+    let mut file = File::create(path)?;
+    file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
+    file.flush()?;
+    Ok(())
 }

@@ -1,12 +1,7 @@
-use std::{
-    fs::File,
-    io::{BufReader, Write},
-};
-
 use anyhow::Error as AnyError;
 use clap::{Args, Parser, Subcommand};
 use try_mazes::{
-    cli::{Error, GeneralMazeAction, GeneralMazeLoadArgs, GeneralRectMazeShape},
+    cli::{self, Error, GeneralMazeAction, GeneralMazeLoadArgs, GeneralRectMazeShape},
     gene::{
         AldousBroderMazeGenerator, EllerMazeGenerator, GrowingTreeMazeGenerator,
         HuntAndKillMazeGenerator, KruskalMazeGenerator, PrimMazeGenerator,
@@ -48,11 +43,7 @@ fn main() -> Result<(), AnyError> {
                 generator.generate(grid)
             }
         },
-        DemoAction::Load(GeneralMazeLoadArgs { load_path, .. }) => {
-            let file = File::open(load_path)?;
-            let reader = BufReader::new(file);
-            serde_json::from_reader(reader)?
-        }
+        DemoAction::Load(GeneralMazeLoadArgs { load_path, .. }) => cli::load_from_json(load_path)?,
     };
     let painter = HexaMazePainter::new(&maze, maze_input.cell_height, maze_input.wall_thickness);
     let picture = MazePicture::new(&painter);
@@ -75,11 +66,7 @@ fn main() -> Result<(), AnyError> {
             } => picture.save(path, *pic_format)?,
             GeneralMazeAction::Save {
                 json: true, path, ..
-            } => {
-                let mut file = File::create(path)?;
-                file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
-                file.flush()?;
-            }
+            } => cli::save_to_json(path, &maze)?,
             other_action => unreachable!(
                 "Invalid maze action({:?}), should be refused by clap.",
                 other_action
