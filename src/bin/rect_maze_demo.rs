@@ -11,7 +11,7 @@ use try_mazes::{
         RecursiveBacktrackerMazeGenerator, WilsonMazeGenerator,
         rect::{
             BTreeMazeGenerator, DiagonalDirection, RectLayerMazeGenerator, RectMaze2dGenerator,
-            RectMazeGenerator, RecursiveDivisionMazeGenerator, SideWinderMazeGenerator,
+            RectMazeGenerator, RecursiveDivisionMazeGenerator, SidewinderMazeGenerator,
         },
     },
     maze::{
@@ -349,7 +349,7 @@ fn make_generator_no_mask(input: &RectMazeCreateArgs) -> Box<dyn RectMazeGenerat
         }
         RectMazeGenAlgorithm {
             sidewinder: true, ..
-        } => Box::new(SideWinderMazeGenerator::new(input.con_dir.unwrap())),
+        } => Box::new(SidewinderMazeGenerator::new(input.con_dir.unwrap())),
         RectMazeGenAlgorithm {
             recursive_division: true,
             ..

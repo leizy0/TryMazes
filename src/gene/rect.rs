@@ -116,17 +116,17 @@ impl RectMazeGenerator<NoMask> for BTreeMazeGenerator {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SideWinderMazeGenerator {
+pub struct SidewinderMazeGenerator {
     con_dir: DiagonalDirection,
 }
 
-impl SideWinderMazeGenerator {
+impl SidewinderMazeGenerator {
     pub fn new(con_dir: DiagonalDirection) -> Self {
         Self { con_dir }
     }
 }
 
-impl RectMazeGenerator<NoMask> for SideWinderMazeGenerator {
+impl RectMazeGenerator<NoMask> for SidewinderMazeGenerator {
     fn generate(&self, mut grid: RectGrid<NoMask>) -> RectMaze {
         let (width, height) = grid.size();
         let mut rng = rand::rng();
