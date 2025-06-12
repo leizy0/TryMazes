@@ -14,6 +14,7 @@ pub mod hexa;
 pub mod rect;
 pub mod tri;
 
+/// The most general generator for maze in 2D.
 pub trait Maze2dGenerator {
     fn generate_2d(&self, grid: &mut dyn Grid2d);
 }
@@ -87,7 +88,7 @@ impl Maze2dGenerator for WilsonMazeGenerator {
                 }
 
                 if let Some(path_ind) = walk_visited_pos.get(candidate).copied() {
-                    // Remove loop.
+                    // The current path has a loop(visit this repeated position twice), remove it by cutting the tail(including the repeated position).
                     for _ in path_ind..cur_path.len() {
                         let remove_pos = cur_path.pop().unwrap();
                         walk_visited_pos.remove(&remove_pos);
@@ -101,6 +102,7 @@ impl Maze2dGenerator for WilsonMazeGenerator {
                 .iter()
                 .zip(cur_path[1..].iter())
             {
+                // Connect the current path.
                 grid.connect_to(from, to);
                 debug_assert!(unvisited_pos.contains(from));
                 unvisited_pos.remove(from);
@@ -121,6 +123,7 @@ impl Maze2dGenerator for HuntAndKillMazeGenerator {
         };
         let mut neighbors = Vec::new();
         while !unvisited_pos.is_empty() {
+            // Kill phase.
             loop {
                 unvisited_pos.remove(&cur_pos);
                 // Select an unvisited candidate randomly.
@@ -137,7 +140,7 @@ impl Maze2dGenerator for HuntAndKillMazeGenerator {
                 cur_pos = *candidate;
             }
 
-            // // Hunt phase.
+            // Hunt phase, find a position which neighbors contain a visited position.
             let Some((next_start_pos, prev_visited_pos)) = unvisited_pos
                 .iter()
                 .filter_map(|pos| {
@@ -198,6 +201,8 @@ impl Maze2dGenerator for RecursiveBacktrackerMazeGenerator {
     }
 }
 
+// A structure to represent neighbor relationship between positions in maze.
+// Using the order of position to ensure that there's only one edge between two neighbors.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct MazeEdge {
     pub low: Position2d,
@@ -213,6 +218,7 @@ impl MazeEdge {
     }
 }
 
+/// A helper to find which set an element belongs after some arbitrary union operations. Every element starts from a set only contains itself.
 struct Union<T: Hash + Eq> {
     ele_inds: HashMap<T, usize>,
     set_ids: RefCell<Vec<usize>>,
@@ -326,6 +332,7 @@ impl Maze2dGenerator for KruskalMazeGenerator {
         let all_pos = grid.all_cells_pos_set();
         let mut neighbors = Vec::new();
         let mut edges = HashSet::new();
+        // Find and save all neighbors(edges) in the maze.
         for pos in all_pos.iter() {
             neighbors.clear();
             grid.append_neighbors(pos, &mut neighbors);
@@ -338,10 +345,12 @@ impl Maze2dGenerator for KruskalMazeGenerator {
         let mut rng = rand::rng();
         let mut cell_pos_union = Union::from_iter(all_pos);
         while cell_pos_union.sets_n() > 1 {
+            // Select an edge randomly.
             let Some(edge) = edges.iter().choose(&mut rng).cloned() else {
                 break;
             };
             if cell_pos_union.merge(&edge.low, &edge.high) {
+                // The edge can connect two different areas in the current maze, connect it to merge these two areas.
                 grid.connect_to(&edge.low, &edge.high);
             }
 
@@ -368,6 +377,7 @@ impl Maze2dGenerator for PrimMazeGenerator {
         let mut visited_pos: HashSet<_> = iter::once(start_pos).collect();
         let mut rng = rand::rng();
         while visited_pos.len() < cells_n {
+            // Select an edge randomly.
             let Some(edge) = edges.iter().choose(&mut rng).cloned() else {
                 break;
             };
@@ -378,11 +388,14 @@ impl Maze2dGenerator for PrimMazeGenerator {
             } else if !visited_pos.contains(&edge.high) {
                 (edge.low, edge.high)
             } else {
+                // The two positions in the edge all have been visited, ignore it.
                 continue;
             };
 
+            // The edge can connect to an unvisited position, so connect it.
             grid.connect_to(&from, &to);
             visited_pos.insert(to);
+            // Add edges which have unvisited neighbor to candidates.
             neighbors.clear();
             grid.append_neighbors(&to, &mut neighbors);
             edges.extend(
@@ -412,8 +425,10 @@ impl Maze2dGenerator for GrowingTreeMazeGenerator {
             if active_pos.is_empty() {
                 break;
             }
+            // Select an active position randomly.
             let active_ind = rng.random_range(0..active_pos.len());
             let pos = *active_pos.iter().nth(active_ind).unwrap();
+            // Select an unvisited neighbor randomly.
             neighbors.clear();
             grid.append_neighbors(&pos, &mut neighbors);
             let Some(neighbor) = neighbors
@@ -421,13 +436,14 @@ impl Maze2dGenerator for GrowingTreeMazeGenerator {
                 .filter(|neighbor| !visited_pos.contains(neighbor))
                 .choose(&mut rng)
             else {
-                // No unvisited neighbor is available, so delete the selected active position
+                // No unvisited neighbor is available, so remove the selected active position
                 let mut tail = active_pos.split_off(active_ind + 1);
                 active_pos.pop_back();
                 active_pos.append(&mut tail);
                 continue;
             };
 
+            // Mark the neighbor as a new active position, and connect to it.
             active_pos.push_back(*neighbor);
             visited_pos.insert(*neighbor);
             grid.connect_to(&pos, neighbor);
@@ -457,30 +473,40 @@ impl LayerMazeGenerator for EllerMazeGenerator {
                     continue;
                 };
                 layer_union.add(last_neighbor);
+                // If these two positions aren't in the same set, they can be connected,
+                // if the current layer is the last layer, they should be connected, otherwise, there will be some unconnected area in the final maze.
+                // At the other layers, they will be connected randomly with a probability of 1/2.
                 let should_connect = !layer_union.is_union(&pos, &last_neighbor).unwrap()
                     && (layer_ind == layers_n - 1 || rng.random_ratio(1, 2));
                 if should_connect {
+                    // If connected, the sets they belongs to also should be united.
                     grid.connect_to(&last_neighbor, &pos);
                     layer_union.merge(&pos, &last_neighbor);
                 }
             }
 
             if layer_ind == layers_n - 1 {
+                // There's no next layer, exit.
                 break;
             }
 
             let mut next_layer_union = Union::new();
+            // Get the final sets in which the positions are connected in the current layer.
             let sets = layer_union.into_sets();
             for set in sets {
+                // Randomly choose a position to connect to next layer, to ensure at least one position in the current set connects to the next layer.
                 let dig_pos = set.iter().choose(&mut rng).cloned().unwrap();
                 let mut first_dig_target = None;
                 for pos in set.into_iter() {
+                    // Positions which aren't chosen also can connect to the next layer randomly with a probability of 1/3.
                     let should_dig = pos == dig_pos || rng.random_ratio(1, 3);
                     if should_dig {
+                        // Randomly chosen a neighbor in the next layer, and connect to it.
                         lower_neighbors.clear();
                         grid.append_neighbors_lower_layer(&pos, &mut lower_neighbors);
                         let dig_neighbor = lower_neighbors.iter().choose(&mut rng).unwrap();
                         grid.connect_to(&pos, dig_neighbor);
+                        // Add the connected target neighbor in the current set to the same set.
                         next_layer_union.add(*dig_neighbor);
                         next_layer_union
                             .merge(dig_neighbor, first_dig_target.get_or_insert(*dig_neighbor));
@@ -488,6 +514,7 @@ impl LayerMazeGenerator for EllerMazeGenerator {
                 }
             }
 
+            // The initial connection settings in the next layer.
             layer_union = next_layer_union;
         }
     }

@@ -110,6 +110,7 @@ impl MazePaint for HexaMazePainter<'_> {
                         }
                     }
                 } else {
+                    // Add the walls between a cell position and a non-cell position.
                     for (ind, dir) in paint_hex_edge_dirs.iter().copied().enumerate() {
                         if pos
                             .neighbor(dir)
@@ -125,6 +126,7 @@ impl MazePaint for HexaMazePainter<'_> {
                 }
 
                 center_x += cell_radius * 1.5;
+                // The y coordinates of the center plot a zigzag line.
                 center_y += if c % 2 == 0 {
                     cell_vert_interval / 2.0
                 } else {
@@ -132,6 +134,7 @@ impl MazePaint for HexaMazePainter<'_> {
                 };
             }
 
+            // Adjust the center y coordinate of the first cell in the next row, due to the last cell's position(the oddity of the row width).
             center_y += if maze_width % 2 == 0 {
                 cell_vert_interval
             } else {

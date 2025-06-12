@@ -101,11 +101,14 @@ impl RectMazeGenerator<NoMask> for BTreeMazeGenerator {
 
                 if at_horz_border {
                     if !at_vert_border {
+                        // Can only connect along the vertical direction.
                         grid.connect_to(&pos, vert_dir);
                     }
                 } else if at_vert_border {
+                    // Can only connect along the horizontal direction.
                     grid.connect_to(&pos, horz_dir);
                 } else {
+                    // Choose a direction equally likely to connect.
                     let rand_dir = connect_dirs[rng.random_range(0..connect_dirs.len())];
                     grid.connect_to(&pos, rand_dir);
                 }
@@ -136,6 +139,7 @@ impl RectMazeGenerator<NoMask> for SidewinderMazeGenerator {
             let mut run_start_ind = if is_horz_reverse { width - 1 } else { 0 };
             for c_ind in 0..width {
                 let c_ind = if is_horz_reverse {
+                    // Start in reverse order, from the larger one to the smaller one.
                     width - 1 - c_ind
                 } else {
                     c_ind
@@ -146,6 +150,7 @@ impl RectMazeGenerator<NoMask> for SidewinderMazeGenerator {
                 let close_out = !at_vert_border && (at_horz_border || rng.random::<bool>());
 
                 if close_out {
+                    // Select a position to break out(connect to other rows) equally likely in the current run.
                     let out_ind = if is_horz_reverse {
                         rng.random_range(c_ind..=run_start_ind)
                     } else {
@@ -158,6 +163,7 @@ impl RectMazeGenerator<NoMask> for SidewinderMazeGenerator {
                         c_ind + 1
                     };
                 } else if !at_horz_border {
+                    // if not going to connect to other rows, connect to the neighbor in the same row.
                     grid.connect_to(&pos, horz_dir);
                 }
             }
@@ -199,6 +205,7 @@ impl RecursiveDivisionMazeGenerator {
         let rows_n = row_range.len();
         let cols_n = col_range.len();
         if self.is_room(row_range.clone(), col_range.clone()) {
+            // Break all the walls in the current room(given ranges) to make a room.
             Self::connect_all(grid, row_range.clone(), col_range.clone());
             return;
         }
@@ -211,6 +218,8 @@ impl RecursiveDivisionMazeGenerator {
                 &RectPosition::new(upper_last_row, break_col),
                 RectDirection::South,
             );
+
+            // Divide the two new areas recursively.
             self.divide(
                 grid,
                 row_range.start..upper_last_row + 1,
@@ -226,6 +235,8 @@ impl RecursiveDivisionMazeGenerator {
                 &RectPosition::new(break_row, left_last_col),
                 RectDirection::East,
             );
+            
+            // Divide the two new areas recursively.
             self.divide(
                 grid,
                 row_range.clone(),

@@ -62,6 +62,7 @@ impl MazePaint for CircMazePainter<'_> {
 
             cur_radius += ring_interval;
         }
+        // Add the final border.
         path.add_circle((0f32, 0f32), cur_radius, PathDirection::CW);
         surface.canvas().draw_path(&path, &paint);
         surface.canvas().restore();

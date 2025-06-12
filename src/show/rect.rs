@@ -172,6 +172,7 @@ impl<T: CmdBoxCharset> Display for RectMazeCmdDisplay<'_, T> {
                 has_west_wall = has_east_wall;
             }
 
+            // Add the east border of the current row.
             let has_south_wall = width
                 .checked_sub(1)
                 .is_some_and(|c_ind| maze.is_cell(&RectPosition::new(r_ind, c_ind)));
@@ -191,6 +192,7 @@ impl<T: CmdBoxCharset> Display for RectMazeCmdDisplay<'_, T> {
             writeln!(f, "{}", body)?;
         }
 
+        // Add the final south border.
         ceil.clear();
         let mut south_row_has_west_wall = false;
         for c_ind in 0..width {

@@ -55,6 +55,7 @@ impl MazePaint for TriMazePainter<'_> {
                 let pos = TriPosition::new(r, c);
                 let is_cell = maze.is_cell(&pos);
                 if maze.is_angle_up(&pos) {
+                    // Angle up triangle.
                     let bot_left_x = top_center_x - cell_horz_interval;
                     let bot_left_y = top_center_y + cell_vert_interval;
                     let bot_right_x = top_center_x + cell_horz_interval;
@@ -70,10 +71,12 @@ impl MazePaint for TriMazePainter<'_> {
                     }
 
                     if c == maze_width - 1 && is_cell {
+                        // The east border of the current row.
                         path.move_to((top_center_x, top_center_y));
                         path.line_to((bot_right_x, bot_right_y));
                     }
                 } else {
+                    // Angle down triangle.
                     let top_left_x = top_center_x - cell_horz_interval;
                     let top_left_y = top_center_y;
                     let top_right_x = top_center_x + cell_horz_interval;
@@ -86,11 +89,13 @@ impl MazePaint for TriMazePainter<'_> {
                     }
 
                     if r == 0 && is_cell {
+                        // The north border of the maze.
                         path.move_to((top_left_x, top_left_y));
                         path.line_to((top_right_x, top_right_y));
                     }
 
                     if c == maze_width - 1 && is_cell {
+                        // The east border of the current row.
                         path.move_to((top_right_x, top_right_y));
                         path.line_to((bot_center_x, bot_center_y));
                     }

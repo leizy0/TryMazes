@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufReader, Write},
+    io::{BufReader, BufWriter, Write},
     path::{Path, PathBuf},
 };
 
@@ -90,8 +90,8 @@ pub fn load_from_json<P: AsRef<Path>, M: DeserializeOwned>(path: P) -> Result<M,
 }
 
 pub fn save_to_json<P: AsRef<Path>, M: Serialize>(path: P, maze: &M) -> Result<(), AnyError> {
-    let mut file = File::create(path)?;
-    file.write_all(serde_json::to_string(&maze)?.as_bytes())?;
-    file.flush()?;
+    let file = File::create(path)?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer(writer, &maze)?;
     Ok(())
 }
